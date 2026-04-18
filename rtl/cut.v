@@ -17,3 +17,4 @@ end
 assign alarm = (data_out == 4'b1111);
 
 endmodule
+#测试
