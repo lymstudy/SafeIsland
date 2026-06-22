@@ -1,37 +1,33 @@
 //------------------------------------------------------------------------------
 // safety_island_core_logic.v
 //
-// AXI Safety Island core control logic.
+// AXI Safety Island 核心控制逻辑。
 //
-// This module does not implement AXI4 protocol channels.  It talks to external
-// AXI slave configuration logic through decoded configuration buses, and talks
-// to external AXI master read engines through an abstract read-request/read-done
-// interface.
+// 本模块不实现 AXI4 协议通道。它通过已解码的配置总线与外部 AXI slave
+// 配置逻辑交互，并通过抽象的读请求/读完成接口与外部 AXI master 读引擎交互。
 //
-// Main functions:
-//   1. Periodic or one-shot scan scheduling.
-//   2. Traversal of NUM_MASTERS masters and NUM_ENTRIES entries per master.
-//   3. Read address generation: base_addr[master] + offset[master][entry].
-//   4. Burst type/length forwarding and basic burst legality checks.
-//   5. Mask + OR accumulation of returned safety register bits.
-//   6. Fault classification:
-//        - external_fault_event: external monitored register bits are set.
-//        - bus_fault_event     : read response error or timeout.
-//        - cfg_fault_event     : illegal configuration or shadow mismatch.
-//        - safety_island_fault_event: internal core logic protection failure.
+// 主要功能：
+//   1. 周期扫描或单次扫描调度。
+//   2. 遍历 NUM_MASTERS 个 master，以及每个 master 下的 NUM_ENTRIES 个条目。
+//   3. 读地址生成：base_addr[master] + offset[master][entry]。
+//   4. 转发 burst 类型/长度，并执行基本的 burst 合法性检查。
+//   5. 对返回的安全寄存器位执行 Mask+OR 累加。
+//   6. 故障分类：
+//        - external_fault_event: 外部被监控寄存器位被置位。
+//        - bus_fault_event     : 读响应错误或超时。
+//        - cfg_fault_event     : 非法配置或 shadow 不匹配。
+//        - safety_island_fault_event: 内部核心逻辑保护失败。
 //
-// Read request convention:
-//   m_read_req is asserted for the selected master and held until that master's
-//   m_read_accept is observed.  The address, burst type, and burst length lanes
-//   for that master remain valid while m_read_req is asserted.
+// 读请求约定：
+//   对选中的 master 置位 m_read_req，并保持到观察到该 master 的 m_read_accept。
+//   当 m_read_req 置位时，该 master 的地址、burst 类型和 burst 长度通道保持有效。
 //
-// Outstanding convention:
-//   SUPPORT_OUTSTANDING=0 keeps the conservative one-request-at-a-time mode.
-//   SUPPORT_OUTSTANDING=1 enables a small in-order FIFO framework.  The core can
-//   issue multiple requests within one master up to MAX_OUTSTANDING, but it
-//   drains all outstanding requests before moving to the next master.  The
-//   external read engine is therefore expected to return completions in issue
-//   order for a given master; no AXI ID reorder/interleaving is implemented here.
+// Outstanding 约定：
+//   SUPPORT_OUTSTANDING=0 保持保守的一次仅一个请求模式。
+//   SUPPORT_OUTSTANDING=1 启用一个小型顺序 FIFO 框架。核心在单个 master 内最多可
+//   发出 MAX_OUTSTANDING 个请求，但在切换到下一个 master 前会清空所有 outstanding
+//   请求。因此外部读引擎应按发出顺序返回给定 master 的完成响应；这里不实现 AXI ID
+//   重排序/交织。
 //------------------------------------------------------------------------------
 
 module safety_island_core_logic
@@ -93,7 +89,7 @@ module safety_island_core_logic
 );
 
 //------------------------------------------------------------------------------
-// FSM encoding and error codes
+// FSM 编码和错误码
 //------------------------------------------------------------------------------
 
 localparam [3:0] ST_IDLE          = 4'h1;
@@ -128,16 +124,16 @@ localparam [7:0] ERR_PENDING_FIFO      = 8'h45;
 localparam [BURST_TYPE_W-1:0] BURST_TYPE_INCR = 2'b01;
 localparam [BURST_TYPE_W-1:0] BURST_TYPE_WRAP = 2'b10;
 
-// AXI-style ARLEN values for WRAP bursts: 2, 4, 8, and 16 beats.
-// INCR is intentionally not limited to 16 beats so the 8-bit length field can
-// support 16-beat and larger bursts when the external read engine supports them.
+// WRAP burst 的 AXI 风格 ARLEN 取值：2、4、8 和 16 beat。
+// INCR 有意不限制为 16 beat，这样在外部读引擎支持时，8 位长度字段可以支持
+// 16 beat 以及更长的 burst。
 localparam [BURST_LEN_W-1:0] WRAP_ARLEN_2_BEATS  = 8'd1;
 localparam [BURST_LEN_W-1:0] WRAP_ARLEN_4_BEATS  = 8'd3;
 localparam [BURST_LEN_W-1:0] WRAP_ARLEN_8_BEATS  = 8'd7;
 localparam [BURST_LEN_W-1:0] WRAP_ARLEN_16_BEATS = 8'd15;
 
 //------------------------------------------------------------------------------
-// Registers and pending request FIFO for simple outstanding support
+// 用于简单 outstanding 支持的寄存器和待处理请求 FIFO
 //------------------------------------------------------------------------------
 
 reg [3:0]        state;
@@ -163,7 +159,7 @@ integer seq_i;
 integer seq_m;
 
 //------------------------------------------------------------------------------
-// Flat bus access functions
+// 扁平总线访问函数
 //------------------------------------------------------------------------------
 
 function [ADDR_W-1:0] get_base_addr;
@@ -308,7 +304,7 @@ end
 endfunction
 
 //------------------------------------------------------------------------------
-// Current entry decode and configuration checking
+// 当前条目解码和配置检查
 //------------------------------------------------------------------------------
 
 wire [ADDR_W-1:0]        current_base_addr;
@@ -405,7 +401,7 @@ always @* begin
 end
 
 //------------------------------------------------------------------------------
-// Outstanding response decode
+// Outstanding 响应解码
 //------------------------------------------------------------------------------
 
 wire [31:0]       response_master_idx;
@@ -470,7 +466,7 @@ assign push_request_comb =
 assign pop_response_comb = response_seen_comb;
 
 //------------------------------------------------------------------------------
-// Functional safety protection checks
+// 功能安全保护检查
 //------------------------------------------------------------------------------
 
 wire fsm_state_legal_comb;
@@ -551,7 +547,7 @@ always @* begin
 end
 
 //------------------------------------------------------------------------------
-// Scan trigger and FSM next-state logic
+// 扫描触发和 FSM 下一状态逻辑
 //------------------------------------------------------------------------------
 
 wire scan_once_re;
@@ -720,7 +716,7 @@ always @* begin
 end
 
 //------------------------------------------------------------------------------
-// Sequential logic
+// 时序逻辑
 //------------------------------------------------------------------------------
 
 always @(posedge clk) begin
@@ -823,9 +819,8 @@ always @(posedge clk) begin
                     core_error_code <= cfg_error_code_comb;
             end
 
-            // Pop one completed read from the in-order pending FIFO.  Normal
-            // data contributes to Mask+OR; response errors and timeouts are
-            // classified as bus faults and do not update the external fault OR.
+            // 从顺序待处理 FIFO 中弹出一个已完成的读请求。正常数据参与 Mask+OR；
+            // 响应错误和超时被归类为总线故障，且不更新外部故障 OR。
             if (pop_response_comb) begin
                 pending_valid_q[pending_rd_ptr] <= 1'b0;
                 pending_rd_ptr <= inc_pending_ptr(pending_rd_ptr);
@@ -844,8 +839,8 @@ always @(posedge clk) begin
                 end
             end
 
-            // Push a newly accepted request into the pending FIFO.  The stored
-            // mask is later paired with the returned data for Mask+OR.
+            // 将新接受的请求压入待处理 FIFO。保存的 mask 后续会与返回数据配对，
+            // 用于执行 Mask+OR。
             if (push_request_comb) begin
                 pending_mask_q[pending_wr_ptr]   <= current_mask;
                 pending_master_q[pending_wr_ptr] <= current_master_idx;
@@ -884,7 +879,7 @@ always @(posedge clk) begin
                 end
 
                 ST_ISSUE_REQ: begin
-                    // Hold request valid until the selected read engine accepts.
+                    // 保持请求有效，直到选中的读引擎接受该请求。
                     if (!cfg_fault_comb && !safety_fault_comb &&
                         issue_slot_available && current_burst_cfg_legal) begin
                         for (seq_m = 0; seq_m < NUM_MASTERS; seq_m = seq_m + 1) begin
@@ -903,9 +898,9 @@ always @(posedge clk) begin
                 end
 
                 ST_ADVANCE: begin
-                    // Traversal order is master 0 entry 0..63, master 1 entry
-                    // 0..63, and so on.  In outstanding mode, the core drains
-                    // the current master before moving to the next one.
+                    // 遍历顺序为 master 0 的 entry 0..63、master 1 的 entry
+                    // 0..63，依此类推。在 outstanding 模式下，核心会先清空当前
+                    // master 的请求，再移动到下一个 master。
                     if (!(at_last_entry && (outstanding_count != 32'd0))) begin
                         if (at_last_entry) begin
                             if (!at_last_master) begin
