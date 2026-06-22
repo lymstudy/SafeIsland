@@ -84,6 +84,7 @@ reg  [NUM_MASTERS*DATA_W-1:0]     m_axi_rdata_flat;
 reg  [NUM_MASTERS*2-1:0]          m_axi_rresp_flat;
 reg  [NUM_MASTERS-1:0]            m_axi_rlast_flat;
 reg  [NUM_MASTERS-1:0]            m_axi_rvalid_flat;
+reg  [NUM_MASTERS*8-1:0]          m_axi_rcheck_flat;
 wire [NUM_MASTERS-1:0]            m_axi_rready_flat;
 
 wire                  fault_detect;
@@ -182,6 +183,7 @@ safety_island_top #(
     .m_axi_rresp_flat(m_axi_rresp_flat),
     .m_axi_rlast_flat(m_axi_rlast_flat),
     .m_axi_rvalid_flat(m_axi_rvalid_flat),
+    .m_axi_rcheck_flat(m_axi_rcheck_flat),
     .m_axi_rready_flat(m_axi_rready_flat),
     .fault_detect(fault_detect),
     .safety_island_fault_detect(safety_island_fault_detect),
@@ -191,6 +193,28 @@ safety_island_top #(
 );
 
 always #5 clk = ~clk;
+
+function [7:0] crc8_rbeat;
+    input [ID_W-1:0] rid;
+    input [DATA_W-1:0] rdata;
+    input [1:0] rresp;
+    input rlast;
+    reg [ID_W+DATA_W+2:0] payload;
+    reg [7:0] crc;
+    reg feedback;
+    integer bit_i;
+begin
+    payload = {rid, rdata, rresp, rlast};
+    crc = 8'h00;
+    for (bit_i = ID_W + DATA_W + 2; bit_i >= 0; bit_i = bit_i - 1) begin
+        feedback = crc[7] ^ payload[bit_i];
+        crc = {crc[6:0], 1'b0};
+        if (feedback)
+            crc = crc ^ 8'h07;
+    end
+    crc8_rbeat = crc;
+end
+endfunction
 
 task axi_cfg_write;
     input [ADDR_W-1:0] addr;
@@ -237,6 +261,7 @@ always @(posedge clk) begin
         m_axi_rresp_flat   <= {(NUM_MASTERS*2){1'b0}};
         m_axi_rdata_flat   <= {(NUM_MASTERS*DATA_W){1'b0}};
         m_axi_rid_flat     <= {(NUM_MASTERS*ID_W){1'b0}};
+        m_axi_rcheck_flat  <= {(NUM_MASTERS*8){1'b0}};
     end else begin
         m_axi_arready_flat <= {NUM_MASTERS{1'b0}};
         m_axi_rvalid_flat  <= {NUM_MASTERS{1'b0}};
@@ -255,6 +280,10 @@ always @(posedge clk) begin
             m_axi_rresp_flat[1:0] <= 2'b00;
             m_axi_rid_flat[ID_W-1:0] <= m_axi_arid_flat[ID_W-1:0];
             m_axi_rdata_flat[DATA_W-1:0] <= 64'h0000_0000_0000_0004;
+            m_axi_rcheck_flat[7:0] <= crc8_rbeat(m_axi_arid_flat[ID_W-1:0],
+                                                  64'h0000_0000_0000_0004,
+                                                  2'b00,
+                                                  1'b1);
             if (m_axi_rready_flat[0]) begin
                 r_count0 <= r_count0 + 1;
                 pending_read0 <= 1'b0;

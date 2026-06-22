@@ -102,6 +102,7 @@ reg  [NUM_MASTERS*DATA_W-1:0]     m_axi_rdata_flat;
 reg  [NUM_MASTERS*2-1:0]          m_axi_rresp_flat;
 reg  [NUM_MASTERS-1:0]            m_axi_rlast_flat;
 reg  [NUM_MASTERS-1:0]            m_axi_rvalid_flat;
+reg  [NUM_MASTERS*8-1:0]          m_axi_rcheck_flat;
 wire [NUM_MASTERS-1:0]            m_axi_rready_flat;
 
 wire                  fault_detect;
@@ -117,6 +118,7 @@ reg [7:0]        q_len   [0:NUM_MASTERS-1][0:Q_DEPTH-1];
 reg [1:0]        q_burst [0:NUM_MASTERS-1][0:Q_DEPTH-1];
 reg [7:0]        q_beat  [0:NUM_MASTERS-1][0:Q_DEPTH-1];
 reg              q_err   [0:NUM_MASTERS-1][0:Q_DEPTH-1];
+integer active_q_idx [0:NUM_MASTERS-1];
 integer q_head [0:NUM_MASTERS-1];
 integer q_tail [0:NUM_MASTERS-1];
 integer q_count[0:NUM_MASTERS-1];
@@ -130,6 +132,10 @@ integer case_fail;
 integer resp_error_master;
 integer timeout_master;
 integer delay_until_ar_count;
+integer response_mode;
+integer invalid_rid_master;
+integer rcheck_error_master;
+integer rcheck_error_beat;
 
 safety_island_top #(
     .NUM_MASTERS(NUM_MASTERS),
@@ -215,6 +221,7 @@ safety_island_top #(
     .m_axi_rresp_flat(m_axi_rresp_flat),
     .m_axi_rlast_flat(m_axi_rlast_flat),
     .m_axi_rvalid_flat(m_axi_rvalid_flat),
+    .m_axi_rcheck_flat(m_axi_rcheck_flat),
     .m_axi_rready_flat(m_axi_rready_flat),
     .fault_detect(fault_detect),
     .safety_island_fault_detect(safety_island_fault_detect),
@@ -245,6 +252,28 @@ begin
 end
 endfunction
 
+function [7:0] crc8_rbeat;
+    input [ID_W-1:0] rid;
+    input [DATA_W-1:0] rdata;
+    input [1:0] rresp;
+    input rlast;
+    reg [ID_W+DATA_W+2:0] payload;
+    reg [7:0] crc;
+    reg feedback;
+    integer bit_i;
+begin
+    payload = {rid, rdata, rresp, rlast};
+    crc = 8'h00;
+    for (bit_i = ID_W + DATA_W + 2; bit_i >= 0; bit_i = bit_i - 1) begin
+        feedback = crc[7] ^ payload[bit_i];
+        crc = {crc[6:0], 1'b0};
+        if (feedback)
+            crc = crc ^ 8'h07;
+    end
+    crc8_rbeat = crc;
+end
+endfunction
+
 function [DATA_W-1:0] mem_read_data;
     input integer master;
     input [31:0] addr;
@@ -260,10 +289,15 @@ begin
     resp_error_master = -1;
     timeout_master = -1;
     delay_until_ar_count = 0;
+    response_mode = 0;
+    invalid_rid_master = -1;
+    rcheck_error_master = -1;
+    rcheck_error_beat = -1;
     for (em = 0; em < NUM_MASTERS; em = em + 1) begin
         q_head[em] = 0;
         q_tail[em] = 0;
         q_count[em] = 0;
+        active_q_idx[em] = 0;
         ar_count[em] = 0;
         r_count[em] = 0;
         max_q_count[em] = 0;
@@ -320,6 +354,7 @@ begin
     m_axi_rresp_flat = {(NUM_MASTERS*2){1'b0}};
     m_axi_rlast_flat = {NUM_MASTERS{1'b0}};
     m_axi_rvalid_flat = {NUM_MASTERS{1'b0}};
+    m_axi_rcheck_flat = {(NUM_MASTERS*8){1'b0}};
 end
 endtask
 
@@ -513,7 +548,16 @@ endtask
 integer am;
 integer qi;
 integer next_tail;
+integer prev_tail;
+integer sel_q;
+integer shift_q;
+integer shift_next;
 integer resp_addr;
+reg [ID_W-1:0] resp_id;
+reg [DATA_W-1:0] resp_data;
+reg [1:0] resp_status;
+reg resp_last;
+reg [7:0] resp_check;
 reg can_respond;
 always @(posedge clk) begin
     if (rst) begin
@@ -551,28 +595,80 @@ always @(posedge clk) begin
                 r_count[am] <= r_count[am] + 1;
 
                 if (m_axi_rlast_flat[am]) begin
-                    qi = q_head[am] + 1;
-                    if (qi >= Q_DEPTH)
-                        qi = 0;
-                    q_head[am] <= qi;
+                    qi = active_q_idx[am];
+                    if (qi == q_head[am]) begin
+                        shift_next = q_head[am] + 1;
+                        if (shift_next >= Q_DEPTH)
+                            shift_next = 0;
+                        q_head[am] <= shift_next;
+                    end else begin
+                        shift_q = qi;
+                        while (shift_q != q_tail[am]) begin
+                            shift_next = shift_q + 1;
+                            if (shift_next >= Q_DEPTH)
+                                shift_next = 0;
+                            if (shift_next != q_tail[am]) begin
+                                q_id[am][shift_q]    <= q_id[am][shift_next];
+                                q_addr[am][shift_q]  <= q_addr[am][shift_next];
+                                q_len[am][shift_q]   <= q_len[am][shift_next];
+                                q_burst[am][shift_q] <= q_burst[am][shift_next];
+                                q_beat[am][shift_q]  <= q_beat[am][shift_next];
+                                q_err[am][shift_q]   <= q_err[am][shift_next];
+                            end
+                            shift_q = shift_next;
+                        end
+                        prev_tail = q_tail[am] - 1;
+                        if (prev_tail < 0)
+                            prev_tail = Q_DEPTH - 1;
+                        q_tail[am] <= prev_tail;
+                    end
                     q_count[am] <= q_count[am] - 1;
                 end else begin
-                    q_beat[am][q_head[am]] <= q_beat[am][q_head[am]] + 8'd1;
+                    q_beat[am][active_q_idx[am]] <= q_beat[am][active_q_idx[am]] + 8'd1;
                 end
             end else if (!m_axi_rvalid_flat[am] && (q_count[am] > 0)) begin
                 can_respond = 1'b1;
                 if ((delay_until_ar_count > 0) && (ar_count[am] < delay_until_ar_count))
                     can_respond = 1'b0;
                 if (can_respond) begin
-                    resp_addr = burst_byte_addr(q_addr[am][q_head[am]],
-                                                q_beat[am][q_head[am]],
-                                                q_len[am][q_head[am]],
-                                                q_burst[am][q_head[am]]);
+                    sel_q = q_head[am];
+                    if (response_mode == 1) begin
+                        sel_q = q_tail[am] - 1;
+                        if (sel_q < 0)
+                            sel_q = Q_DEPTH - 1;
+                    end else if (response_mode == 2) begin
+                        sel_q = q_head[am] + (r_count[am] % q_count[am]);
+                        while (sel_q >= Q_DEPTH)
+                            sel_q = sel_q - Q_DEPTH;
+                    end else if (response_mode == 3) begin
+                        if ((r_count[am] % 2) == 0) begin
+                            sel_q = q_tail[am] - 1;
+                            if (sel_q < 0)
+                                sel_q = Q_DEPTH - 1;
+                        end
+                    end
+                    active_q_idx[am] = sel_q;
+                    resp_addr = burst_byte_addr(q_addr[am][sel_q],
+                                                q_beat[am][sel_q],
+                                                q_len[am][sel_q],
+                                                q_burst[am][sel_q]);
+                    if (am == invalid_rid_master)
+                        resp_id = {ID_W{1'b1}};
+                    else
+                        resp_id = q_id[am][sel_q];
+                    resp_data = mem_read_data(am, resp_addr);
+                    resp_status = q_err[am][sel_q] ? 2'b10 : 2'b00;
+                    resp_last = (q_beat[am][sel_q] == q_len[am][sel_q]);
+                    resp_check = crc8_rbeat(resp_id, resp_data, resp_status, resp_last);
+                    if ((am == rcheck_error_master) &&
+                        ((rcheck_error_beat < 0) || (q_beat[am][sel_q] == rcheck_error_beat[7:0])))
+                        resp_check = resp_check ^ 8'h5A;
                     m_axi_rvalid_flat[am] <= 1'b1;
-                    m_axi_rid_flat[am*ID_W +: ID_W] <= q_id[am][q_head[am]];
-                    m_axi_rdata_flat[am*DATA_W +: DATA_W] <= mem_read_data(am, resp_addr);
-                    m_axi_rresp_flat[am*2 +: 2] <= q_err[am][q_head[am]] ? 2'b10 : 2'b00;
-                    m_axi_rlast_flat[am] <= (q_beat[am][q_head[am]] == q_len[am][q_head[am]]);
+                    m_axi_rid_flat[am*ID_W +: ID_W] <= resp_id;
+                    m_axi_rdata_flat[am*DATA_W +: DATA_W] <= resp_data;
+                    m_axi_rresp_flat[am*2 +: 2] <= resp_status;
+                    m_axi_rlast_flat[am] <= resp_last;
+                    m_axi_rcheck_flat[am*8 +: 8] <= resp_check;
                 end
             end
         end
@@ -741,6 +837,142 @@ begin
 end
 endtask
 
+task out_of_order_flow;
+begin
+    case_fail = 0;
+    reset_dut();
+    setup_default_base();
+    delay_until_ar_count = 4;
+    response_mode = 1;
+    ext_mem[0][0] = 64'h1;
+    ext_mem[0][1] = 64'h2;
+    ext_mem[0][2] = 64'h4;
+    ext_mem[0][3] = 64'h8;
+    config_entry(0, 0, 32'h0,  64'hFFFF_FFFF_FFFF_FFFF, 2'b01, 8'd0, 1'b1);
+    config_entry(0, 1, 32'h8,  64'hFFFF_FFFF_FFFF_FFFF, 2'b01, 8'd0, 1'b1);
+    config_entry(0, 2, 32'h10, 64'hFFFF_FFFF_FFFF_FFFF, 2'b01, 8'd0, 1'b1);
+    config_entry(0, 3, 32'h18, 64'hFFFF_FFFF_FFFF_FFFF, 2'b01, 8'd0, 1'b1);
+    lock_enable_scan();
+    wait_fault_detect(6000);
+    expect_equal("out_of_order_result", fault_or_result, 64'hF);
+    expect_equal("out_of_order_error", {56'd0, core_error_code}, 64'h30);
+    pass_case("out_of_order_flow");
+end
+endtask
+
+task interleaving_flow;
+begin
+    case_fail = 0;
+    reset_dut();
+    setup_default_base();
+    delay_until_ar_count = 2;
+    response_mode = 2;
+    ext_mem[0][0] = 64'h1;
+    ext_mem[0][1] = 64'h2;
+    ext_mem[0][2] = 64'h4;
+    ext_mem[0][3] = 64'h8;
+    config_entry(0, 0, 32'h0,  64'hFFFF_FFFF_FFFF_FFFF, 2'b01, 8'd1, 1'b1);
+    config_entry(0, 1, 32'h10, 64'hFFFF_FFFF_FFFF_FFFF, 2'b01, 8'd1, 1'b1);
+    lock_enable_scan();
+    wait_fault_detect(6000);
+    expect_equal("interleaving_result", fault_or_result, 64'hF);
+    expect_equal("interleaving_error", {56'd0, core_error_code}, 64'h30);
+    pass_case("interleaving_flow");
+end
+endtask
+
+task out_of_order_interleaving_flow;
+begin
+    case_fail = 0;
+    reset_dut();
+    setup_default_base();
+    delay_until_ar_count = 3;
+    response_mode = 3;
+    ext_mem[0][0] = 64'h01;
+    ext_mem[0][1] = 64'h02;
+    ext_mem[0][2] = 64'h04;
+    ext_mem[0][3] = 64'h08;
+    ext_mem[0][4] = 64'h10;
+    ext_mem[0][5] = 64'h20;
+    config_entry(0, 0, 32'h0,  64'hFFFF_FFFF_FFFF_FFFF, 2'b01, 8'd1, 1'b1);
+    config_entry(0, 1, 32'h10, 64'hFFFF_FFFF_FFFF_FFFF, 2'b01, 8'd1, 1'b1);
+    config_entry(0, 2, 32'h20, 64'hFFFF_FFFF_FFFF_FFFF, 2'b01, 8'd1, 1'b1);
+    lock_enable_scan();
+    wait_fault_detect(6000);
+    expect_equal("ooo_interleaving_result", fault_or_result, 64'h3F);
+    expect_equal("ooo_interleaving_error", {56'd0, core_error_code}, 64'h30);
+    pass_case("out_of_order_interleaving_flow");
+end
+endtask
+
+task invalid_rid_error_flow;
+begin
+    case_fail = 0;
+    reset_dut();
+    setup_default_base();
+    invalid_rid_master = 0;
+    ext_mem[0][0] = 64'h1;
+    config_entry(0, 0, 32'h0, 64'hFFFF_FFFF_FFFF_FFFF, 2'b01, 8'd0, 1'b1);
+    lock_enable_scan();
+    wait_fault_detect(5000);
+    expect_equal("invalid_rid_fault", {63'd0, fault_detect}, 64'h1);
+    expect_equal("invalid_rid_code", {56'd0, core_error_code}, 64'h20);
+    pass_case("invalid_rid_error_flow");
+end
+endtask
+
+task aou_rcheck_ok_flow;
+begin
+    case_fail = 0;
+    reset_dut();
+    setup_default_base();
+    ext_mem[0][0] = 64'h40;
+    config_entry(0, 0, 32'h0, 64'hFFFF_FFFF_FFFF_FFFF, 2'b01, 8'd0, 1'b1);
+    lock_enable_scan();
+    wait_fault_detect(5000);
+    expect_equal("aou_rcheck_ok_result", fault_or_result, 64'h40);
+    expect_equal("aou_rcheck_ok_code", {56'd0, core_error_code}, 64'h30);
+    pass_case("aou_rcheck_ok_flow");
+end
+endtask
+
+task aou_rcheck_error_flow;
+begin
+    case_fail = 0;
+    reset_dut();
+    setup_default_base();
+    rcheck_error_master = 0;
+    rcheck_error_beat = 0;
+    ext_mem[0][0] = 64'h0;
+    config_entry(0, 0, 32'h0, 64'hFFFF_FFFF_FFFF_FFFF, 2'b01, 8'd0, 1'b1);
+    lock_enable_scan();
+    wait_fault_detect(5000);
+    expect_equal("aou_rcheck_error_fault", {63'd0, fault_detect}, 64'h1);
+    expect_equal("aou_rcheck_error_code", {56'd0, core_error_code}, 64'h20);
+    pass_case("aou_rcheck_error_flow");
+end
+endtask
+
+task aou_rcheck_burst_error_flow;
+begin
+    case_fail = 0;
+    reset_dut();
+    setup_default_base();
+    rcheck_error_master = 0;
+    rcheck_error_beat = 1;
+    ext_mem[0][0] = 64'h0;
+    ext_mem[0][1] = 64'h0;
+    ext_mem[0][2] = 64'h0;
+    ext_mem[0][3] = 64'h0;
+    config_entry(0, 0, 32'h0, 64'hFFFF_FFFF_FFFF_FFFF, 2'b01, 8'd3, 1'b1);
+    lock_enable_scan();
+    wait_fault_detect(6000);
+    expect_equal("aou_rcheck_burst_fault", {63'd0, fault_detect}, 64'h1);
+    expect_equal("aou_rcheck_burst_code", {56'd0, core_error_code}, 64'h20);
+    pass_case("aou_rcheck_burst_error_flow");
+end
+endtask
+
 task config_error_flow;
     reg [DATA_W-1:0] status;
 begin
@@ -828,6 +1060,13 @@ initial begin
     bus_error_flow();
     timeout_flow();
     outstanding_flow();
+    out_of_order_flow();
+    interleaving_flow();
+    out_of_order_interleaving_flow();
+    invalid_rid_error_flow();
+    aou_rcheck_ok_flow();
+    aou_rcheck_error_flow();
+    aou_rcheck_burst_error_flow();
     config_error_flow();
     latent_fault_flow();
 

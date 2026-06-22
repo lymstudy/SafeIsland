@@ -1,26 +1,33 @@
-# do run_safety_island_fault_injection_# Model# Model Technology ModelSim SE-64 vmap 2020.4 Lib Mapping Utility 2020.10 Oct 13 2020
-# vmap work D:/studydoc/competition/PIC/SafeIsland/sim/out/safety_island_fault_injection/work 
-# Modifying # reading D:/s# reading D:/software/modelism/MODELISM/win64/../# Model Technology ModelSim SE-64 vlog 2020.4 Compiler 2020.10 Oct 13 2020
-# Start time: 15:43:21 on Jun 22,2026
-# vlog -work D:/studydoc/competition/PIC/SafeIsland/sim/out/safety_island_top_full/work -f safety_island_top.f 
+# do run_safety_island_top_basic_tb.do
+# Model Technology ModelSim SE-64 vmap 2020.4 Lib Mapping Utility 2020.10 Oct 13 2020
+# vmap work D:/studydoc/competition/PIC/SafeIsland/sim/out/safety_island_top_basic/work 
+# Modifying modelsim.ini
+# reading D:/software/modelism/MODELISM/win64/../modelsim.ini
+# Model Technology ModelSim SE-64 vlog 2020.4 Compiler 2020.10 Oct 13 2020
+# Start time: 17:27:03 on Jun 22,2026
+# vlog -work D:/studydoc/competition/PIC/SafeIsland/sim/out/safety_island_top_basic/work -f safety_island_top.f 
 # -- Compiling module safety_island_axi_read_engine
-# -- Compiling module# -- Compiling module safet# -- Compiling module# -- Compiling module safety_isla# -- Compiling module safety_island_top
+# -- Compiling module safety_island_core_logic
+# -- Compiling module safety_island_axi_config_slave
+# -- Compiling module safety_island_top
 # 
-# Top level modul# 
 # Top level modules:
 # 	safety_island_top
-# End time: 15:43:21 on Jun 22,2026, Elapsed time: 0:00:00
-# Err# reading modelsim.in# r# Model Technology Mo# Model Technology ModelSim SE-64 vlog 2020.4 Compiler 2020.10 Oct 13 2020
-# Start time: 15:43:22 on Jun 22,2026
-# vlog -work D:/studydoc/competition/PIC/SafeIsland/sim/out/safety_island_fault_injection/work D:/studydoc/competition/PIC/SafeIsland/tb/tb# -- Compiling module tb_safety_isl# -- Compiling# 
-# Top level modules:
-# 	tb_safety_island_top_full
-# End time: 15:43:22 on Jun 22,2026, Elapsed time: 0:00:00
+# End time: 17:27:03 on Jun 22,2026, Elapsed time: 0:00:00
 # Errors: 0, Warnings: 0
-# vsim -lib D:/studydoc/competition/PIC/SafeIslan# vsim -lib D:/studydoc/competition/PIC/SafeIsland/sim/out/safety_island_fault_injection/work -voptargs="+acc" -wlf D:/studydoc/competition/PIC/SafeIsland/sim/out/safety_island_fault_injection/safety_island_fault_injection.wlf tb_safety_island_fault_injection 
-# Start time: 15:43:22 on Jun 22,2026
+# reading modelsim.ini
+# Model Technology ModelSim SE-64 vlog 2020.4 Compiler 2020.10 Oct 13 2020
+# Start time: 17:27:03 on Jun 22,2026
+# vlog -work D:/studydoc/competition/PIC/SafeIsland/sim/out/safety_island_top_basic/work D:/studydoc/competition/PIC/SafeIsland/tb/tb_safety_island_top_basic.v 
+# -- Compiling module tb_safety_island_top_basic
+# 
+# Top level modules:
+# 	tb_safety_island_top_basic
+# End time: 17:27:03 on Jun 22,2026, Elapsed time: 0:00:00
+# Errors: 0, Warnings: 0
+# vsim -lib D:/studydoc/competition/PIC/SafeIsland/sim/out/safety_island_top_basic/work tb_safety_island_top_basic 
+# Start time: 17:27:03 on Jun 22,2026
 # ** Note: (vsim-3812) Design is being optimized...
-# ** Note: (vopt-143) Recognized 2 FSMs in module "safety_island_core_logic(fast)".
 # //  ModelSim SE-64 2020.4 Oct 13 2020
 # //
 # //  Copyright 1991-2020 Mentor Graphics Corporation
@@ -31,28 +38,12 @@
 # //  Mentor Graphics Corporation and are privileged, confidential,
 # //  and exempt from disclosure under the Freedom of Information Act,
 # //  5 U.S.C. Section 552. Furthermore, this information
-# //  is prohibited from d# Loading work.tb_safety_island_top_full(fast)
-# Loading work.safety_island_# Loading work.tb_safety_island_fault_injection(fast)
-# Loading work.safety_island_top(fast)
-# Loading work.safety_island_axi_config_slave(fast)
-# Loading work.safety_island_core_logic(fast)
-# Loading work.safety_i# PASS: basic_fault_flow
-# PASS: no_fault_flow
-# PASS: multi_master_flow
-# PASS: burst_16_incr_flow
-# PASS: wrap_burst_flow
-# PASS: bus_error_flow
-# PASS: timeout_flow
-# PASS: outstanding_flow
-# PASS: config_error_flow
-# PASS: latent_fault_flow
-# PASS: safety_island_top full test completed, cases=10
-# ** Note: $finish    : D:/studydoc/competition/PIC/SafeIsland/tb/tb_safety_island_top_full.v(839)
-#    Time: 47580 ns  Iteration: 1  Instance: /tb_safety_island_top_full
-# End time: 15:43:25 on Jun 22,2026, Elapsed time: 0:00:03
-# Errors: 0, Warnings: 0
-ety_island fault injection campaign completed
-# ** Note: $finish    : D:/studydoc/competition/PIC/SafeIsland/tb/tb_safety_island_fault_injection.v(495)
-#    Time: 14115 ns  Iteration: 1  Instance: /tb_safety_island_fault_injection
-# End time: 15:43:24 on Jun 22,2026, Elapsed time: 0:00:02
+# //  is prohibited from disclosure under the Trade Secrets Act,
+# //  18 U.S.C. Section 1905.
+# //
+# Loading work.tb_safety_island_top_basic(fast)
+# PASS: safety_island_top basic config/read/fault flow
+# ** Note: $finish    : D:/studydoc/competition/PIC/SafeIsland/tb/tb_safety_island_top_basic.v(461)
+#    Time: 6685 ns  Iteration: 1  Instance: /tb_safety_island_top_basic
+# End time: 17:27:04 on Jun 22,2026, Elapsed time: 0:00:01
 # Errors: 0, Warnings: 0

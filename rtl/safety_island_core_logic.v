@@ -30,6 +30,8 @@
 //   重排序/交织。
 //------------------------------------------------------------------------------
 
+// Current AXI read engines may complete out of order or with interleaved R
+// beats by RID. This core still consumes completions in request issue order.
 module safety_island_core_logic
 #(
     parameter NUM_MASTERS         = 5,

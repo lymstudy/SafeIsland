@@ -94,6 +94,7 @@ reg  [NUM_MASTERS*DATA_W-1:0]     m_axi_rdata_flat;
 reg  [NUM_MASTERS*2-1:0]          m_axi_rresp_flat;
 reg  [NUM_MASTERS-1:0]            m_axi_rlast_flat;
 reg  [NUM_MASTERS-1:0]            m_axi_rvalid_flat;
+reg  [NUM_MASTERS*8-1:0]          m_axi_rcheck_flat;
 wire [NUM_MASTERS-1:0]            m_axi_rready_flat;
 
 wire                  fault_detect;
@@ -107,6 +108,12 @@ integer corrected_cases;
 integer detected_cases;
 integer undetected_cases;
 integer cycle_count;
+integer summary_fd;
+integer protection_rate_pct;
+integer resp_error_enable;
+integer rid_mismatch_enable;
+integer rcheck_error_enable;
+reg [1023:0] summary_file;
 
 safety_island_top #(
     .NUM_MASTERS(NUM_MASTERS),
@@ -191,6 +198,7 @@ safety_island_top #(
     .m_axi_rresp_flat(m_axi_rresp_flat),
     .m_axi_rlast_flat(m_axi_rlast_flat),
     .m_axi_rvalid_flat(m_axi_rvalid_flat),
+    .m_axi_rcheck_flat(m_axi_rcheck_flat),
     .m_axi_rready_flat(m_axi_rready_flat),
     .fault_detect(fault_detect),
     .safety_island_fault_detect(safety_island_fault_detect),
@@ -200,6 +208,28 @@ safety_island_top #(
 );
 
 always #5 clk = ~clk;
+
+function [7:0] crc8_rbeat;
+    input [ID_W-1:0] rid;
+    input [DATA_W-1:0] rdata;
+    input [1:0] rresp;
+    input rlast;
+    reg [ID_W+DATA_W+2:0] payload;
+    reg [7:0] crc;
+    reg feedback;
+    integer bit_i;
+begin
+    payload = {rid, rdata, rresp, rlast};
+    crc = 8'h00;
+    for (bit_i = ID_W + DATA_W + 2; bit_i >= 0; bit_i = bit_i - 1) begin
+        feedback = crc[7] ^ payload[bit_i];
+        crc = {crc[6:0], 1'b0};
+        if (feedback)
+            crc = crc ^ 8'h07;
+    end
+    crc8_rbeat = crc;
+end
+endfunction
 
 task init_signals;
 begin
@@ -240,6 +270,10 @@ begin
     m_axi_rresp_flat = {(NUM_MASTERS*2){1'b0}};
     m_axi_rlast_flat = {NUM_MASTERS{1'b0}};
     m_axi_rvalid_flat = {NUM_MASTERS{1'b0}};
+    m_axi_rcheck_flat = {(NUM_MASTERS*8){1'b0}};
+    resp_error_enable = 0;
+    rid_mismatch_enable = 0;
+    rcheck_error_enable = 0;
 end
 endtask
 
@@ -328,9 +362,18 @@ begin
     if (m_axi_arvalid_flat[0] && m_axi_arready_flat[0] && !m_axi_rvalid_flat[0]) begin
         m_axi_rvalid_flat[0] <= 1'b1;
         m_axi_rlast_flat[0] <= 1'b1;
-        m_axi_rid_flat[ID_W-1:0] <= m_axi_arid_flat[ID_W-1:0];
+        m_axi_rid_flat[ID_W-1:0] <= rid_mismatch_enable ?
+                                     (m_axi_arid_flat[ID_W-1:0] ^ {{(ID_W-1){1'b0}}, 1'b1}) :
+                                     m_axi_arid_flat[ID_W-1:0];
         m_axi_rdata_flat[DATA_W-1:0] <= 64'd0;
-        m_axi_rresp_flat[1:0] <= 2'b00;
+        m_axi_rresp_flat[1:0] <= resp_error_enable ? 2'b10 : 2'b00;
+        m_axi_rcheck_flat[7:0] <= crc8_rbeat(rid_mismatch_enable ?
+                                             (m_axi_arid_flat[ID_W-1:0] ^ {{(ID_W-1){1'b0}}, 1'b1}) :
+                                             m_axi_arid_flat[ID_W-1:0],
+                                             64'd0,
+                                             resp_error_enable ? 2'b10 : 2'b00,
+                                             1'b1) ^
+                                  (rcheck_error_enable ? 8'h5A : 8'h00);
     end else if (m_axi_rvalid_flat[0] && m_axi_rready_flat[0]) begin
         m_axi_rvalid_flat[0] <= 1'b0;
         m_axi_rlast_flat[0] <= 1'b0;
@@ -348,31 +391,46 @@ always @(posedge clk) begin
     end
 end
 
+task emit_case;
+    input [8*64-1:0] name;
+    input [8*24-1:0] fault_type;
+    input [8*12-1:0] result;
+    input integer cycles;
+begin
+    $display("FI_CASE: name=%0s type=%0s result=%0s cycles=%0d code=%h",
+             name, fault_type, result, cycles, core_error_code);
+    if (summary_fd != 0)
+        $fdisplay(summary_fd, "FI_CASE: name=%0s type=%0s result=%0s cycles=%0d code=%h",
+                  name, fault_type, result, cycles, core_error_code);
+end
+endtask
+
 task report_detected;
-    input [8*48-1:0] name;
+    input [8*64-1:0] name;
+    input [8*24-1:0] fault_type;
     input integer cycles;
 begin
     total_cases = total_cases + 1;
     detected_cases = detected_cases + 1;
-    $display("FI_DETECTED: %0s cycles=%0d code=%h fault=%b safety=%b latent=%b",
-             name, cycles, core_error_code, fault_detect,
-             safety_island_fault_detect, safety_island_latent_fault_detect);
+    emit_case(name, fault_type, "detected", cycles);
 end
 endtask
 
 task report_undetected;
-    input [8*48-1:0] name;
+    input [8*64-1:0] name;
+    input [8*24-1:0] fault_type;
 begin
     total_cases = total_cases + 1;
     undetected_cases = undetected_cases + 1;
-    $display("FI_UNDETECTED: %0s code=%h fault=%b safety=%b latent=%b",
-             name, core_error_code, fault_detect,
-             safety_island_fault_detect, safety_island_latent_fault_detect);
+    emit_case(name, fault_type, "undetected", -1);
+    $display("FI_DEBUG: fault=%b safety=%b latent=%b",
+             fault_detect, safety_island_fault_detect, safety_island_latent_fault_detect);
 end
 endtask
 
 task expect_fault_within_10;
-    input [8*48-1:0] name;
+    input [8*64-1:0] name;
+    input [8*24-1:0] fault_type;
     input expect_fault_detect;
     input expect_safety_detect;
     input expect_latent_detect;
@@ -393,19 +451,69 @@ begin
     end
 
     if (hit)
-        report_detected(name, c);
+        report_detected(name, fault_type, c);
     else
-        report_undetected(name);
+        report_undetected(name, fault_type);
 end
 endtask
 
-task run_cfg_shadow_stuck;
+task run_cfg_read_interval_shadow_stuck;
 begin
     reset_dut();
     config_minimal();
     force dut.u_cfg.read_interval_inv = 64'h0;
-    expect_fault_within_10("cfg_shadow_read_interval_stuck", 1'b1, 1'b0, 1'b1);
+    expect_fault_within_10("read_interval_inv", "config_register", 1'b1, 1'b0, 1'b1);
     release dut.u_cfg.read_interval_inv;
+end
+endtask
+
+task run_cfg_base_shadow_stuck;
+begin
+    reset_dut();
+    config_minimal();
+    force dut.u_cfg.base_addr_inv_q[0] = 32'h0;
+    expect_fault_within_10("base_addr_inv_q0", "config_register", 1'b1, 1'b0, 1'b1);
+    release dut.u_cfg.base_addr_inv_q[0];
+end
+endtask
+
+task run_cfg_offset_shadow_stuck;
+begin
+    reset_dut();
+    config_minimal();
+    force dut.u_cfg.offset_inv_q[0] = 32'h0;
+    expect_fault_within_10("offset_inv_q0", "config_register", 1'b1, 1'b0, 1'b1);
+    release dut.u_cfg.offset_inv_q[0];
+end
+endtask
+
+task run_cfg_mask_shadow_stuck;
+begin
+    reset_dut();
+    config_minimal();
+    force dut.u_cfg.mask_inv_q[0] = 64'hFFFF_FFFF_FFFF_FFFF;
+    expect_fault_within_10("mask_inv_q0", "config_register", 1'b1, 1'b0, 1'b1);
+    release dut.u_cfg.mask_inv_q[0];
+end
+endtask
+
+task run_cfg_burst_shadow_stuck;
+begin
+    reset_dut();
+    config_minimal();
+    force dut.u_cfg.burst_type_inv_q[0] = 2'b00;
+    expect_fault_within_10("burst_type_inv_q0", "config_register", 1'b1, 1'b0, 1'b1);
+    release dut.u_cfg.burst_type_inv_q[0];
+end
+endtask
+
+task run_cfg_entry_valid_shadow_stuck;
+begin
+    reset_dut();
+    config_minimal();
+    force dut.u_cfg.entry_valid_inv_q[0] = 1'b1;
+    expect_fault_within_10("entry_valid_inv_q0", "config_register", 1'b1, 1'b0, 1'b1);
+    release dut.u_cfg.entry_valid_inv_q[0];
 end
 endtask
 
@@ -414,7 +522,7 @@ begin
     reset_dut();
     config_minimal();
     force dut.u_core.state_inv = 4'h0;
-    expect_fault_within_10("core_state_inv_stuck", 1'b0, 1'b1, 1'b1);
+    expect_fault_within_10("state_inv", "core_register", 1'b0, 1'b1, 1'b1);
     release dut.u_core.state_inv;
 end
 endtask
@@ -424,18 +532,38 @@ begin
     reset_dut();
     config_minimal();
     force dut.u_core.fault_or_accum_inv = 64'h0;
-    expect_fault_within_10("core_accum_inv_stuck", 1'b0, 1'b1, 1'b1);
+    expect_fault_within_10("fault_or_accum_inv", "core_register", 1'b0, 1'b1, 1'b1);
     release dut.u_core.fault_or_accum_inv;
 end
 endtask
 
-task run_pending_ptr_stuck;
+task run_pending_wr_ptr_stuck;
 begin
     reset_dut();
     config_minimal();
     force dut.u_core.pending_wr_ptr = 32'hFFFF_FFFF;
-    expect_fault_within_10("pending_wr_ptr_stuck", 1'b0, 1'b1, 1'b1);
+    expect_fault_within_10("pending_wr_ptr", "core_register", 1'b0, 1'b1, 1'b1);
     release dut.u_core.pending_wr_ptr;
+end
+endtask
+
+task run_pending_rd_ptr_stuck;
+begin
+    reset_dut();
+    config_minimal();
+    force dut.u_core.pending_rd_ptr = 32'hFFFF_FFFF;
+    expect_fault_within_10("pending_rd_ptr", "core_register", 1'b0, 1'b1, 1'b1);
+    release dut.u_core.pending_rd_ptr;
+end
+endtask
+
+task run_outstanding_count_stuck;
+begin
+    reset_dut();
+    config_minimal();
+    force dut.u_core.outstanding_count = 32'hFFFF_FFFF;
+    expect_fault_within_10("outstanding_count", "core_register", 1'b0, 1'b1, 1'b1);
+    release dut.u_core.outstanding_count;
 end
 endtask
 
@@ -447,7 +575,61 @@ begin
     @(posedge clk);
     @(negedge clk);
     release dut.u_core.state_inv;
-    expect_fault_within_10("transient_state_inv_flip", 1'b0, 1'b1, 1'b1);
+    expect_fault_within_10("transient_state_inv", "transient", 1'b0, 1'b1, 1'b1);
+end
+endtask
+
+task run_transient_accum_inv_flip;
+begin
+    reset_dut();
+    config_minimal();
+    force dut.u_core.fault_or_accum_inv = 64'h0;
+    @(posedge clk);
+    @(negedge clk);
+    release dut.u_core.fault_or_accum_inv;
+    expect_fault_within_10("transient_fault_or_accum_inv", "transient", 1'b0, 1'b1, 1'b1);
+end
+endtask
+
+task run_transient_cfg_shadow_flip;
+begin
+    reset_dut();
+    config_minimal();
+    force dut.u_cfg.mask_inv_q[0] = 64'hFFFF_FFFF_FFFF_FFFF;
+    @(posedge clk);
+    @(negedge clk);
+    release dut.u_cfg.mask_inv_q[0];
+    expect_fault_within_10("transient_config_shadow", "transient", 1'b1, 1'b0, 1'b0);
+end
+endtask
+
+task run_axi_rresp_error_fault;
+begin
+    reset_dut();
+    resp_error_enable = 1;
+    config_minimal();
+    expect_fault_within_10("axi_rresp_error", "port_interface", 1'b1, 1'b0, 1'b0);
+    resp_error_enable = 0;
+end
+endtask
+
+task run_axi_rid_mismatch_fault;
+begin
+    reset_dut();
+    rid_mismatch_enable = 1;
+    config_minimal();
+    expect_fault_within_10("axi_rid_mismatch", "port_interface", 1'b1, 1'b0, 1'b0);
+    rid_mismatch_enable = 0;
+end
+endtask
+
+task run_axi_rcheck_error_fault;
+begin
+    reset_dut();
+    rcheck_error_enable = 1;
+    config_minimal();
+    expect_fault_within_10("axi_rcheck_error", "port_interface", 1'b1, 1'b0, 1'b0);
+    rcheck_error_enable = 0;
 end
 endtask
 
@@ -461,9 +643,9 @@ begin
     if (fault_detect && (core_error_code == 8'h21)) begin
         total_cases = total_cases + 1;
         detected_cases = detected_cases + 1;
-        $display("FI_DETECTED: axi_timeout cycles=timeout_window code=%h", core_error_code);
+        emit_case("axi_read_timeout", "port_interface", "detected", 1200);
     end else begin
-        report_undetected("axi_timeout");
+        report_undetected("axi_read_timeout", "port_interface");
     end
     release m_axi_arready_flat[0];
     release m_axi_rvalid_flat[0];
@@ -477,16 +659,46 @@ initial begin
     corrected_cases = 0;
     detected_cases = 0;
     undetected_cases = 0;
+    if (!$value$plusargs("SUMMARY_FILE=%s", summary_file))
+        summary_file = "fault_injection_summary.txt";
+    summary_fd = $fopen(summary_file, "w");
+    if (summary_fd == 0)
+        $display("FI_WARN: failed to open summary file %0s", summary_file);
 
-    run_cfg_shadow_stuck();
+    run_cfg_read_interval_shadow_stuck();
+    run_cfg_base_shadow_stuck();
+    run_cfg_offset_shadow_stuck();
+    run_cfg_mask_shadow_stuck();
+    run_cfg_burst_shadow_stuck();
+    run_cfg_entry_valid_shadow_stuck();
     run_core_state_inv_stuck();
     run_core_accum_inv_stuck();
-    run_pending_ptr_stuck();
-    run_transient_state_inv_flip();
+    run_pending_wr_ptr_stuck();
+    run_pending_rd_ptr_stuck();
+    run_outstanding_count_stuck();
     run_axi_timeout_fault();
+    run_axi_rresp_error_fault();
+    run_axi_rid_mismatch_fault();
+    run_axi_rcheck_error_fault();
+    run_transient_state_inv_flip();
+    run_transient_accum_inv_flip();
+    run_transient_cfg_shadow_flip();
 
-    $display("FI_SUMMARY: total=%0d corrected=%0d detected=%0d undetected=%0d",
-             total_cases, corrected_cases, detected_cases, undetected_cases);
+    if (total_cases > 0)
+        protection_rate_pct = ((corrected_cases + detected_cases) * 100) / total_cases;
+    else
+        protection_rate_pct = 0;
+
+    $display("FI_SUMMARY: total=%0d corrected=%0d detected=%0d undetected=%0d protection_rate=%0d%%",
+             total_cases, corrected_cases, detected_cases, undetected_cases,
+             protection_rate_pct);
+
+    if (summary_fd != 0) begin
+        $fdisplay(summary_fd, "FI_SUMMARY: total=%0d corrected=%0d detected=%0d undetected=%0d protection_rate=%0d%%",
+                  total_cases, corrected_cases, detected_cases, undetected_cases,
+                  protection_rate_pct);
+        $fclose(summary_fd);
+    end
 
     if (undetected_cases == 0)
         $display("PASS: safety_island fault injection campaign completed");

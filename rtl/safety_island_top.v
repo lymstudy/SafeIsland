@@ -87,6 +87,7 @@ module safety_island_top #(
     input  wire [NUM_MASTERS*2-1:0]                  m_axi_rresp_flat,
     input  wire [NUM_MASTERS-1:0]                    m_axi_rlast_flat,
     input  wire [NUM_MASTERS-1:0]                    m_axi_rvalid_flat,
+    input  wire [NUM_MASTERS*8-1:0]                  m_axi_rcheck_flat,
     output wire [NUM_MASTERS-1:0]                    m_axi_rready_flat,
 
     output wire                                      fault_detect,
@@ -395,6 +396,7 @@ generate
             .m_axi_rresp(m_axi_rresp_flat[mi*2 +: 2]),
             .m_axi_rlast(m_axi_rlast_flat[mi]),
             .m_axi_rvalid(m_axi_rvalid_flat[mi]),
+            .m_axi_rcheck(m_axi_rcheck_flat[mi*8 +: 8]),
             .m_axi_rready(m_axi_rready_flat[mi])
         );
     end
