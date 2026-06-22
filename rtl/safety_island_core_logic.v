@@ -142,6 +142,8 @@ reg [3:0]        state_next;
 reg [63:0]       interval_counter;
 reg              scan_once_d;
 reg              scan_once_pending;
+reg              safety_fault_q;
+reg [7:0]        safety_error_code_q;
 
 reg [DATA_W-1:0] fault_or_accum;
 reg [DATA_W-1:0] fault_or_accum_inv;
@@ -163,7 +165,7 @@ integer seq_m;
 //------------------------------------------------------------------------------
 
 function [ADDR_W-1:0] get_base_addr;
-    input integer master;
+    input [31:0] master;
     integer bit_base;
 begin
     bit_base = master * ADDR_W;
@@ -175,8 +177,8 @@ end
 endfunction
 
 function [ADDR_W-1:0] get_offset;
-    input integer master;
-    input integer entry;
+    input [31:0] master;
+    input [31:0] entry;
     integer bit_base;
 begin
     bit_base = ((master * NUM_ENTRIES) + entry) * ADDR_W;
@@ -189,8 +191,8 @@ end
 endfunction
 
 function [DATA_W-1:0] get_mask;
-    input integer master;
-    input integer entry;
+    input [31:0] master;
+    input [31:0] entry;
     integer bit_base;
 begin
     bit_base = ((master * NUM_ENTRIES) + entry) * DATA_W;
@@ -203,8 +205,8 @@ end
 endfunction
 
 function [BURST_TYPE_W-1:0] get_burst_type;
-    input integer master;
-    input integer entry;
+    input [31:0] master;
+    input [31:0] entry;
     integer bit_base;
 begin
     bit_base = ((master * NUM_ENTRIES) + entry) * BURST_TYPE_W;
@@ -217,8 +219,8 @@ end
 endfunction
 
 function [BURST_LEN_W-1:0] get_burst_len;
-    input integer master;
-    input integer entry;
+    input [31:0] master;
+    input [31:0] entry;
     integer bit_base;
 begin
     bit_base = ((master * NUM_ENTRIES) + entry) * BURST_LEN_W;
@@ -231,8 +233,8 @@ end
 endfunction
 
 function get_entry_valid;
-    input integer master;
-    input integer entry;
+    input [31:0] master;
+    input [31:0] entry;
     integer bit_index;
 begin
     bit_index = (master * NUM_ENTRIES) + entry;
@@ -245,7 +247,7 @@ end
 endfunction
 
 function [DATA_W-1:0] get_read_data;
-    input integer master;
+    input [31:0] master;
     integer bit_base;
 begin
     bit_base = master * DATA_W;
@@ -258,7 +260,7 @@ endfunction
 
 function get_master_flag;
     input [NUM_MASTERS-1:0] flag_vec;
-    input integer master;
+    input [31:0] master;
 begin
     if ((master >= 0) && (master < NUM_MASTERS))
         get_master_flag = flag_vec[master];
@@ -318,13 +320,54 @@ wire                     current_burst_type_legal;
 wire                     current_burst_len_legal;
 wire                     current_burst_cfg_legal;
 
-assign current_base_addr        = get_base_addr(current_master_idx);
-assign current_offset           = get_offset(current_master_idx, current_entry_idx);
+reg [ADDR_W-1:0]        current_base_addr_dec;
+reg [ADDR_W-1:0]        current_offset_dec;
+reg [DATA_W-1:0]        current_mask_dec;
+reg [BURST_TYPE_W-1:0]  current_burst_type_dec;
+reg [BURST_LEN_W-1:0]   current_burst_len_dec;
+reg                     current_entry_valid_dec;
+integer dec_m;
+integer dec_e;
+
+always @* begin
+    current_base_addr_dec   = {ADDR_W{1'b0}};
+    current_offset_dec      = {ADDR_W{1'b0}};
+    current_mask_dec        = {DATA_W{1'b0}};
+    current_burst_type_dec  = {BURST_TYPE_W{1'b0}};
+    current_burst_len_dec   = {BURST_LEN_W{1'b0}};
+    current_entry_valid_dec = 1'b0;
+
+    for (dec_m = 0; dec_m < NUM_MASTERS; dec_m = dec_m + 1) begin
+        if (current_master_idx == dec_m[31:0])
+            current_base_addr_dec = base_addr_flat[dec_m*ADDR_W +: ADDR_W];
+    end
+
+    for (dec_m = 0; dec_m < NUM_MASTERS; dec_m = dec_m + 1) begin
+        for (dec_e = 0; dec_e < NUM_ENTRIES; dec_e = dec_e + 1) begin
+            if ((current_master_idx == dec_m[31:0]) &&
+                (current_entry_idx  == dec_e[31:0])) begin
+                current_offset_dec =
+                    offset_flat[((dec_m * NUM_ENTRIES) + dec_e)*ADDR_W +: ADDR_W];
+                current_mask_dec =
+                    mask_flat[((dec_m * NUM_ENTRIES) + dec_e)*DATA_W +: DATA_W];
+                current_burst_type_dec =
+                    burst_type_flat[((dec_m * NUM_ENTRIES) + dec_e)*BURST_TYPE_W +: BURST_TYPE_W];
+                current_burst_len_dec =
+                    burst_len_flat[((dec_m * NUM_ENTRIES) + dec_e)*BURST_LEN_W +: BURST_LEN_W];
+                current_entry_valid_dec =
+                    entry_valid_flat[(dec_m * NUM_ENTRIES) + dec_e];
+            end
+        end
+    end
+end
+
+assign current_base_addr        = current_base_addr_dec;
+assign current_offset           = current_offset_dec;
 assign current_read_addr        = current_base_addr + current_offset;
-assign current_mask             = get_mask(current_master_idx, current_entry_idx);
-assign current_burst_type       = get_burst_type(current_master_idx, current_entry_idx);
-assign current_burst_len        = get_burst_len(current_master_idx, current_entry_idx);
-assign current_entry_valid      = get_entry_valid(current_master_idx, current_entry_idx);
+assign current_mask             = current_mask_dec;
+assign current_burst_type       = current_burst_type_dec;
+assign current_burst_len        = current_burst_len_dec;
+assign current_entry_valid      = current_entry_valid_dec;
 assign current_burst_type_legal = is_burst_type_legal(current_burst_type);
 assign current_burst_len_legal  = is_burst_len_legal(current_burst_type,
                                                      current_burst_len);
@@ -416,18 +459,38 @@ wire              response_bus_fault_comb;
 wire [DATA_W-1:0] response_read_data;
 wire [DATA_W-1:0] response_masked_data;
 wire [DATA_W-1:0] response_accum_next;
+wire [DATA_W-1:0] fault_or_accum_effective;
+reg               response_done_flag_dec;
+reg               response_error_flag_dec;
+reg               response_timeout_flag_dec;
+reg [DATA_W-1:0] response_read_data_dec;
+integer           rsp_dec_m;
 
 assign response_master_idx      = pending_master_q[pending_rd_ptr];
 assign response_entry_idx       = pending_entry_q[pending_rd_ptr];
 assign response_master_in_range = (response_master_idx < NUM_MASTERS);
 assign response_fifo_valid      = (outstanding_count != 32'd0) &&
                                   pending_valid_q[pending_rd_ptr];
-assign response_done_flag       = get_master_flag(m_read_done,
-                                                  response_master_idx);
-assign response_error_flag      = get_master_flag(m_resp_error,
-                                                  response_master_idx);
-assign response_timeout_flag    = get_master_flag(m_timeout,
-                                                  response_master_idx);
+always @* begin
+    response_done_flag_dec    = 1'b0;
+    response_error_flag_dec   = 1'b0;
+    response_timeout_flag_dec = 1'b0;
+    response_read_data_dec    = {DATA_W{1'b0}};
+
+    for (rsp_dec_m = 0; rsp_dec_m < NUM_MASTERS; rsp_dec_m = rsp_dec_m + 1) begin
+        if (response_master_idx == rsp_dec_m[31:0]) begin
+            response_done_flag_dec    = m_read_done[rsp_dec_m];
+            response_error_flag_dec   = m_resp_error[rsp_dec_m];
+            response_timeout_flag_dec = m_timeout[rsp_dec_m];
+            response_read_data_dec    =
+                m_read_data_flat[rsp_dec_m*DATA_W +: DATA_W];
+        end
+    end
+end
+
+assign response_done_flag       = response_done_flag_dec;
+assign response_error_flag      = response_error_flag_dec;
+assign response_timeout_flag    = response_timeout_flag_dec;
 assign response_seen_comb       = response_fifo_valid &&
                                   response_master_in_range &&
                                   (response_done_flag ||
@@ -436,7 +499,7 @@ assign response_seen_comb       = response_fifo_valid &&
 assign response_bus_fault_comb  = response_seen_comb &&
                                   (response_error_flag ||
                                    response_timeout_flag);
-assign response_read_data       = get_read_data(response_master_idx);
+assign response_read_data       = response_read_data_dec;
 assign response_masked_data     = response_read_data &
                                   pending_mask_q[pending_rd_ptr];
 assign response_accum_next      = fault_or_accum | response_masked_data;
@@ -464,6 +527,9 @@ assign push_request_comb =
     issue_slot_available &&
     !cfg_fault_comb;
 assign pop_response_comb = response_seen_comb;
+assign fault_or_accum_effective =
+    (pop_response_comb && !response_bus_fault_comb) ? response_accum_next :
+                                                       fault_or_accum;
 
 //------------------------------------------------------------------------------
 // 功能安全保护检查
@@ -479,6 +545,7 @@ wire pending_valid_fault_comb;
 wire accum_shadow_fault_comb;
 wire outstanding_fault_comb;
 wire safety_fault_comb;
+wire safety_fault_stable_comb;
 reg  [7:0] safety_error_code_comb;
 
 assign fsm_state_legal_comb =
@@ -529,6 +596,7 @@ assign safety_fault_comb =
     pending_valid_fault_comb    |
     accum_shadow_fault_comb     |
     outstanding_fault_comb;
+assign safety_fault_stable_comb = safety_fault_comb & safety_fault_q;
 
 always @* begin
     safety_error_code_comb = ERR_NONE;
@@ -693,7 +761,7 @@ always @* begin
         end
     endcase
 
-    if (safety_fault_comb)
+    if (safety_fault_stable_comb)
         state_next = ST_SAFE_ERROR;
 end
 
@@ -726,6 +794,8 @@ always @(posedge clk) begin
         interval_counter          <= 64'd0;
         scan_once_d               <= 1'b0;
         scan_once_pending         <= 1'b0;
+        safety_fault_q            <= 1'b0;
+        safety_error_code_q       <= ERR_NONE;
         fault_or_accum            <= {DATA_W{1'b0}};
         fault_or_accum_inv        <= {DATA_W{1'b1}};
         pending_wr_ptr            <= 32'd0;
@@ -764,6 +834,8 @@ always @(posedge clk) begin
             state_inv                 <= ~ST_IDLE;
             interval_counter          <= 64'd0;
             scan_once_pending         <= 1'b0;
+            safety_fault_q            <= 1'b0;
+            safety_error_code_q       <= ERR_NONE;
             fault_or_accum            <= {DATA_W{1'b0}};
             fault_or_accum_inv        <= {DATA_W{1'b1}};
             pending_wr_ptr            <= 32'd0;
@@ -792,6 +864,8 @@ always @(posedge clk) begin
             state     <= state_next;
             state_inv <= ~state_next;
             scan_busy <= scan_busy_next_comb;
+            safety_fault_q      <= safety_fault_comb;
+            safety_error_code_q <= safety_error_code_comb;
 
             if (scan_once_re)
                 scan_once_pending <= 1'b1;
@@ -807,10 +881,10 @@ always @(posedge clk) begin
                 interval_counter <= 64'd0;
             end
 
-            if (safety_fault_comb) begin
+            if (safety_fault_stable_comb) begin
                 safety_island_fault_event <= 1'b1;
                 if (core_error_code == ERR_NONE)
-                    core_error_code <= safety_error_code_comb;
+                    core_error_code <= safety_error_code_q;
             end
 
             if (cfg_fault_comb) begin
@@ -915,9 +989,9 @@ always @(posedge clk) begin
 
                 ST_SCAN_DONE: begin
                     scan_done_pulse <= 1'b1;
-                    fault_or_result <= fault_or_accum;
+                    fault_or_result <= fault_or_accum_effective;
 
-                    if (fault_or_accum != {DATA_W{1'b0}}) begin
+                    if (fault_or_accum_effective != {DATA_W{1'b0}}) begin
                         external_fault_event <= 1'b1;
                         if (core_error_code == ERR_NONE)
                             core_error_code <= ERR_EXTERNAL_FAULT;
@@ -925,15 +999,19 @@ always @(posedge clk) begin
                 end
 
                 ST_SAFE_ERROR: begin
-                    safety_island_fault_event <= 1'b1;
-                    if (core_error_code == ERR_NONE)
-                        core_error_code <= ERR_FSM_ILLEGAL;
+                    if (safety_fault_stable_comb) begin
+                        safety_island_fault_event <= 1'b1;
+                        if (core_error_code == ERR_NONE)
+                            core_error_code <= safety_error_code_q;
+                    end
                 end
 
                 default: begin
-                    safety_island_fault_event <= 1'b1;
-                    if (core_error_code == ERR_NONE)
-                        core_error_code <= ERR_FSM_ILLEGAL;
+                    if (safety_fault_stable_comb) begin
+                        safety_island_fault_event <= 1'b1;
+                        if (core_error_code == ERR_NONE)
+                            core_error_code <= safety_error_code_q;
+                    end
                 end
             endcase
         end
