@@ -1,0 +1,89 @@
+m255
+K4
+z2
+!s11f vlog 2020.4 2020.10, Oct 13 2020
+13
+!s112 1.1
+!i10d 8192
+!i10e 25
+!i10f 100
+cModel Technology
+Z0 dD:/studydoc/competition/PIC/SafeIsland/sim/modelsim/axi
+T_opt
+!s110 1782107614
+V0hg:AM`:ZUbV:@mS?9Gf^0
+04 13 4 work tb_axi_master fast 0
+=1-5084926986a1-6a38cdde-50-b11c
+o-quiet -auto_acc_if_foreign -work ../../out/axi_master/run_work_1782107613_34384
+Z1 tCvgOpt 0
+n@_opt
+OL;O;2020.4;71
+vaxi_master
+Z2 !s110 1782107613
+!i10b 1
+!s100 We6YXJ7n<6`kn^R8QgOcH0
+Z3 !s11b Dg1SIo80bB@j0V0VzS_@n1
+IA36lKUYVTL:MU_SYVPHXc0
+R0
+w1782095072
+8../../../rtl/AXI/axi_master.v
+F../../../rtl/AXI/axi_master.v
+!i122 0
+L0 3 301
+Z4 VDg1SIo80bB@j0V0VzS_@n1
+Z5 OL;L;2020.4;71
+r1
+!s85 0
+31
+Z6 !s108 1782107613.000000
+Z7 !s107 ../../../tb/axi/tb_axi_master.v|../../../rtl/AXI/axi_master.v|../../../tb/axi/axi_slave_mem_model.v|
+Z8 !s90 -work|../../out/axi_master/run_work_1782107613_34384|../../../tb/axi/axi_slave_mem_model.v|../../../rtl/AXI/axi_master.v|../../../tb/axi/tb_axi_master.v|
+!i113 0
+Z9 o-work ../../out/axi_master/run_work_1782107613_34384 -L mtiAvm -L mtiRnm -L mtiOvm -L mtiUvm -L mtiUPF -L infact
+R1
+vaxi_slave_mem_model
+R2
+!i10b 1
+!s100 cECfI_PacjQ]n=d6EUHj80
+R3
+Iz13I^YMM9:Bl05fUL6?b80
+R0
+Z10 w1782090435
+8../../../tb/axi/axi_slave_mem_model.v
+F../../../tb/axi/axi_slave_mem_model.v
+!i122 0
+L0 3 235
+R4
+R5
+r1
+!s85 0
+31
+R6
+R7
+R8
+!i113 0
+R9
+R1
+vtb_axi_master
+R2
+!i10b 1
+!s100 6NYDIVaXn:o6@en]9QiIH2
+R3
+IReQ_NbfBzKlTCQn;^[UiO2
+R0
+R10
+8../../../tb/axi/tb_axi_master.v
+F../../../tb/axi/tb_axi_master.v
+!i122 0
+L0 3 339
+R4
+R5
+r1
+!s85 0
+31
+R6
+R7
+R8
+!i113 0
+R9
+R1
