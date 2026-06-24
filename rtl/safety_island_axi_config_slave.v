@@ -62,6 +62,7 @@ module safety_island_axi_config_slave #(
     output reg  [NUM_MASTERS*NUM_ENTRIES*2-1:0]      burst_type_flat,
     output reg  [NUM_MASTERS*NUM_ENTRIES*8-1:0]      burst_len_flat,
     output reg  [NUM_MASTERS*NUM_ENTRIES-1:0]        entry_valid_flat,
+    output reg  [NUM_MASTERS*NUM_ENTRIES*DATA_W-1:0] expected_flat,
     output wire                                      cfg_valid,
     output wire                                      cfg_locked,
     output wire                                      cfg_illegal,
@@ -99,6 +100,7 @@ localparam [ADDR_W-1:0] ENTRY_STRIDE       = 32'h0000_0020;
 localparam [ADDR_W-1:0] ENTRY_OFFSET_OFF   = 32'h0000_0000;
 localparam [ADDR_W-1:0] ENTRY_MASK_OFF     = 32'h0000_0008;
 localparam [ADDR_W-1:0] ENTRY_BURST_OFF    = 32'h0000_0010;
+localparam [ADDR_W-1:0] ENTRY_EXPECTED_OFF = 32'h0000_0018;
 
 reg [ADDR_W-1:0] awaddr_q;
 reg [ID_W-1:0]   awid_q;
@@ -133,6 +135,8 @@ reg [7:0]        burst_len_q     [0:NUM_MASTERS*NUM_ENTRIES-1];
 reg [7:0]        burst_len_inv_q [0:NUM_MASTERS*NUM_ENTRIES-1];
 reg              entry_valid_q   [0:NUM_MASTERS*NUM_ENTRIES-1];
 reg              entry_valid_inv_q[0:NUM_MASTERS*NUM_ENTRIES-1];
+reg [DATA_W-1:0] expected_q      [0:NUM_MASTERS*NUM_ENTRIES-1];
+reg [DATA_W-1:0] expected_inv_q  [0:NUM_MASTERS*NUM_ENTRIES-1];
 
 integer flat_m;
 integer flat_idx;
@@ -228,6 +232,7 @@ always @* begin
         burst_type_flat[flat_idx*2 +: 2] = burst_type_q[flat_idx];
         burst_len_flat[flat_idx*8 +: 8] = burst_len_q[flat_idx];
         entry_valid_flat[flat_idx] = entry_valid_q[flat_idx];
+        expected_flat[flat_idx*DATA_W +: DATA_W] = expected_q[flat_idx];
     end
 end
 
@@ -247,7 +252,8 @@ always @* begin
             (mask_inv_q[shadow_idx] != ~mask_q[shadow_idx]) ||
             (burst_type_inv_q[shadow_idx] != ~burst_type_q[shadow_idx]) ||
             (burst_len_inv_q[shadow_idx] != ~burst_len_q[shadow_idx]) ||
-            (entry_valid_inv_q[shadow_idx] != ~entry_valid_q[shadow_idx]))
+            (entry_valid_inv_q[shadow_idx] != ~entry_valid_q[shadow_idx]) ||
+            (expected_inv_q[shadow_idx] != ~expected_q[shadow_idx]))
             shadow_error_comb = 1'b1;
     end
 end
@@ -294,6 +300,7 @@ always @* begin
                 ENTRY_OFFSET_OFF: read_data_comb = {{(DATA_W-ADDR_W){1'b0}}, offset_q[read_idx]};
                 ENTRY_MASK_OFF:   read_data_comb = mask_q[read_idx];
                 ENTRY_BURST_OFF:  read_data_comb = burst_read_value(read_idx);
+                ENTRY_EXPECTED_OFF: read_data_comb = expected_q[read_idx];
                 default: begin
                     read_data_comb = {DATA_W{1'b0}};
                     read_resp_comb = RESP_SLVERR;
@@ -358,6 +365,8 @@ always @(posedge clk) begin
             burst_len_inv_q[seq_idx]  <= {8{1'b1}};
             entry_valid_q[seq_idx]    <= 1'b0;
             entry_valid_inv_q[seq_idx]<= 1'b1;
+            expected_q[seq_idx]      <= {DATA_W{1'b0}};
+            expected_inv_q[seq_idx]  <= {DATA_W{1'b1}};
         end
     end else begin
         scan_once         <= 1'b0;
@@ -448,6 +457,11 @@ always @(posedge clk) begin
                             burst_len_inv_q[seq_idx]   <= ~merged_write[15:8];
                             entry_valid_q[seq_idx]     <= merged_write[16];
                             entry_valid_inv_q[seq_idx] <= ~merged_write[16];
+                        end
+                        ENTRY_EXPECTED_OFF: begin
+                            merged_write              = apply_wstrb(expected_q[seq_idx], write_data_comb, write_strb_comb);
+                            expected_q[seq_idx]       <= merged_write;
+                            expected_inv_q[seq_idx]   <= ~merged_write;
                         end
                         default: begin
                             write_resp_comb = RESP_SLVERR;

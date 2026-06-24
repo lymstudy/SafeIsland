@@ -24,6 +24,7 @@ localparam [31:0] ENTRY_STRIDE       = 32'h0000_0020;
 localparam [31:0] ENTRY_OFFSET_OFF   = 32'h0000_0000;
 localparam [31:0] ENTRY_MASK_OFF     = 32'h0000_0008;
 localparam [31:0] ENTRY_BURST_OFF    = 32'h0000_0010;
+localparam [31:0] ENTRY_EXPECTED_OFF = 32'h0000_0018;
 
 reg clk;
 reg rst;
@@ -449,12 +450,14 @@ task config_entry;
     input [1:0] burst_type;
     input [7:0] burst_len;
     input valid;
+    input [DATA_W-1:0] expected;
     reg [31:0] entry_addr;
 begin
     entry_addr = ADDR_ENTRY_REGION + master * ENTRY_MASTER_STRIDE + entry * ENTRY_STRIDE;
     axi_cfg_write(entry_addr + ENTRY_OFFSET_OFF, {{32{1'b0}}, offset});
     axi_cfg_write(entry_addr + ENTRY_MASK_OFF, mask);
     axi_cfg_write(entry_addr + ENTRY_BURST_OFF, {{47{1'b0}}, valid, burst_len, 6'd0, burst_type});
+    axi_cfg_write(entry_addr + ENTRY_EXPECTED_OFF, expected);
 end
 endtask
 
@@ -691,7 +694,7 @@ begin
     reset_dut();
     setup_default_base();
     ext_mem[0][0] = 64'h4;
-    config_entry(0, 0, 32'h0, 64'hFFFF_FFFF_FFFF_FFFF, 2'b01, 8'd0, 1'b1);
+    config_entry(0, 0, 32'h0, 64'hFFFF_FFFF_FFFF_FFFF, 2'b01, 8'd0, 1'b1, 64'd0);
     lock_enable_scan();
     wait_fault_detect(5000);
     expect_equal("basic_fault_result", fault_or_result, 64'h4);
@@ -707,7 +710,7 @@ begin
     reset_dut();
     setup_default_base();
     ext_mem[0][0] = 64'h0;
-    config_entry(0, 0, 32'h0, 64'hFFFF_FFFF_FFFF_FFFF, 2'b01, 8'd0, 1'b1);
+    config_entry(0, 0, 32'h0, 64'hFFFF_FFFF_FFFF_FFFF, 2'b01, 8'd0, 1'b1, 64'd0);
     lock_enable_scan();
     wait_scan_done(3000);
     expect_equal("no_fault_result", fault_or_result, 64'h0);
@@ -725,10 +728,10 @@ begin
     ext_mem[0][1] = 64'h2;
     ext_mem[1][0] = 64'h10;
     ext_mem[1][1] = 64'h20;
-    config_entry(0, 0, 32'h0, 64'hFFFF_FFFF_FFFF_FFFF, 2'b01, 8'd0, 1'b1);
-    config_entry(0, 1, 32'h8, 64'hFFFF_FFFF_FFFF_FFFF, 2'b01, 8'd0, 1'b1);
-    config_entry(1, 0, 32'h0, 64'hFFFF_FFFF_FFFF_FFFF, 2'b01, 8'd0, 1'b1);
-    config_entry(1, 1, 32'h8, 64'hFFFF_FFFF_FFFF_FFFF, 2'b01, 8'd0, 1'b1);
+    config_entry(0, 0, 32'h0, 64'hFFFF_FFFF_FFFF_FFFF, 2'b01, 8'd0, 1'b1, 64'd0);
+    config_entry(0, 1, 32'h8, 64'hFFFF_FFFF_FFFF_FFFF, 2'b01, 8'd0, 1'b1, 64'd0);
+    config_entry(1, 0, 32'h0, 64'hFFFF_FFFF_FFFF_FFFF, 2'b01, 8'd0, 1'b1, 64'd0);
+    config_entry(1, 1, 32'h8, 64'hFFFF_FFFF_FFFF_FFFF, 2'b01, 8'd0, 1'b1, 64'd0);
     lock_enable_scan();
     wait_fault_detect(6000);
     expect_equal("multi_master_result", fault_or_result, 64'h33);
@@ -748,7 +751,7 @@ begin
         ext_mem[0][bi] = (64'h1 << bi);
         exp = exp | (64'h1 << bi);
     end
-    config_entry(0, 0, 32'h0, 64'hFFFF_FFFF_FFFF_FFFF, 2'b01, 8'd15, 1'b1);
+    config_entry(0, 0, 32'h0, 64'hFFFF_FFFF_FFFF_FFFF, 2'b01, 8'd15, 1'b1, 64'd0);
     lock_enable_scan();
     wait_fault_detect(6000);
     expect_equal("burst16_result", fault_or_result, exp);
@@ -765,7 +768,7 @@ begin
     ext_mem[0][1] = 64'h2;
     ext_mem[0][2] = 64'h4;
     ext_mem[0][3] = 64'h8;
-    config_entry(0, 0, 32'h10, 64'hFFFF_FFFF_FFFF_FFFF, 2'b10, 8'd3, 1'b1);
+    config_entry(0, 0, 32'h10, 64'hFFFF_FFFF_FFFF_FFFF, 2'b10, 8'd3, 1'b1, 64'd0);
     lock_enable_scan();
     wait_fault_detect(6000);
     expect_equal("wrap_result", fault_or_result, 64'hF);
@@ -780,7 +783,7 @@ begin
     setup_default_base();
     resp_error_master = 0;
     ext_mem[0][0] = 64'h1;
-    config_entry(0, 0, 32'h0, 64'hFFFF_FFFF_FFFF_FFFF, 2'b01, 8'd0, 1'b1);
+    config_entry(0, 0, 32'h0, 64'hFFFF_FFFF_FFFF_FFFF, 2'b01, 8'd0, 1'b1, 64'd0);
     lock_enable_scan();
     wait_fault_detect(5000);
     expect_equal("bus_error_fault", {63'd0, fault_detect}, 64'h1);
@@ -795,7 +798,7 @@ begin
     reset_dut();
     setup_default_base();
     timeout_master = 0;
-    config_entry(0, 0, 32'h0, 64'hFFFF_FFFF_FFFF_FFFF, 2'b01, 8'd0, 1'b1);
+    config_entry(0, 0, 32'h0, 64'hFFFF_FFFF_FFFF_FFFF, 2'b01, 8'd0, 1'b1, 64'd0);
     lock_enable_scan();
     wait_cycles(300);
     expect_equal("timeout_fault", {63'd0, fault_detect}, 64'h1);
@@ -815,10 +818,10 @@ begin
     ext_mem[0][1] = 64'h2;
     ext_mem[0][2] = 64'h4;
     ext_mem[0][3] = 64'h8;
-    config_entry(0, 0, 32'h0, 64'hFFFF_FFFF_FFFF_FFFF, 2'b01, 8'd0, 1'b1);
-    config_entry(0, 1, 32'h8, 64'hFFFF_FFFF_FFFF_FFFF, 2'b01, 8'd0, 1'b1);
-    config_entry(0, 2, 32'h10, 64'hFFFF_FFFF_FFFF_FFFF, 2'b01, 8'd0, 1'b1);
-    config_entry(0, 3, 32'h18, 64'hFFFF_FFFF_FFFF_FFFF, 2'b01, 8'd0, 1'b1);
+    config_entry(0, 0, 32'h0, 64'hFFFF_FFFF_FFFF_FFFF, 2'b01, 8'd0, 1'b1, 64'd0);
+    config_entry(0, 1, 32'h8, 64'hFFFF_FFFF_FFFF_FFFF, 2'b01, 8'd0, 1'b1, 64'd0);
+    config_entry(0, 2, 32'h10, 64'hFFFF_FFFF_FFFF_FFFF, 2'b01, 8'd0, 1'b1, 64'd0);
+    config_entry(0, 3, 32'h18, 64'hFFFF_FFFF_FFFF_FFFF, 2'b01, 8'd0, 1'b1, 64'd0);
     axi_cfg_read(ADDR_ENTRY_REGION + 3 * ENTRY_STRIDE + ENTRY_MASK_OFF, cfg_rd);
     if (cfg_rd !== 64'hFFFF_FFFF_FFFF_FFFF) begin
         $display("FAIL: outstanding entry3 mask readback=%h", cfg_rd);
@@ -848,10 +851,10 @@ begin
     ext_mem[0][1] = 64'h2;
     ext_mem[0][2] = 64'h4;
     ext_mem[0][3] = 64'h8;
-    config_entry(0, 0, 32'h0,  64'hFFFF_FFFF_FFFF_FFFF, 2'b01, 8'd0, 1'b1);
-    config_entry(0, 1, 32'h8,  64'hFFFF_FFFF_FFFF_FFFF, 2'b01, 8'd0, 1'b1);
-    config_entry(0, 2, 32'h10, 64'hFFFF_FFFF_FFFF_FFFF, 2'b01, 8'd0, 1'b1);
-    config_entry(0, 3, 32'h18, 64'hFFFF_FFFF_FFFF_FFFF, 2'b01, 8'd0, 1'b1);
+    config_entry(0, 0, 32'h0,  64'hFFFF_FFFF_FFFF_FFFF, 2'b01, 8'd0, 1'b1, 64'd0);
+    config_entry(0, 1, 32'h8,  64'hFFFF_FFFF_FFFF_FFFF, 2'b01, 8'd0, 1'b1, 64'd0);
+    config_entry(0, 2, 32'h10, 64'hFFFF_FFFF_FFFF_FFFF, 2'b01, 8'd0, 1'b1, 64'd0);
+    config_entry(0, 3, 32'h18, 64'hFFFF_FFFF_FFFF_FFFF, 2'b01, 8'd0, 1'b1, 64'd0);
     lock_enable_scan();
     wait_fault_detect(6000);
     expect_equal("out_of_order_result", fault_or_result, 64'hF);
@@ -871,8 +874,8 @@ begin
     ext_mem[0][1] = 64'h2;
     ext_mem[0][2] = 64'h4;
     ext_mem[0][3] = 64'h8;
-    config_entry(0, 0, 32'h0,  64'hFFFF_FFFF_FFFF_FFFF, 2'b01, 8'd1, 1'b1);
-    config_entry(0, 1, 32'h10, 64'hFFFF_FFFF_FFFF_FFFF, 2'b01, 8'd1, 1'b1);
+    config_entry(0, 0, 32'h0,  64'hFFFF_FFFF_FFFF_FFFF, 2'b01, 8'd1, 1'b1, 64'd0);
+    config_entry(0, 1, 32'h10, 64'hFFFF_FFFF_FFFF_FFFF, 2'b01, 8'd1, 1'b1, 64'd0);
     lock_enable_scan();
     wait_fault_detect(6000);
     expect_equal("interleaving_result", fault_or_result, 64'hF);
@@ -894,9 +897,9 @@ begin
     ext_mem[0][3] = 64'h08;
     ext_mem[0][4] = 64'h10;
     ext_mem[0][5] = 64'h20;
-    config_entry(0, 0, 32'h0,  64'hFFFF_FFFF_FFFF_FFFF, 2'b01, 8'd1, 1'b1);
-    config_entry(0, 1, 32'h10, 64'hFFFF_FFFF_FFFF_FFFF, 2'b01, 8'd1, 1'b1);
-    config_entry(0, 2, 32'h20, 64'hFFFF_FFFF_FFFF_FFFF, 2'b01, 8'd1, 1'b1);
+    config_entry(0, 0, 32'h0,  64'hFFFF_FFFF_FFFF_FFFF, 2'b01, 8'd1, 1'b1, 64'd0);
+    config_entry(0, 1, 32'h10, 64'hFFFF_FFFF_FFFF_FFFF, 2'b01, 8'd1, 1'b1, 64'd0);
+    config_entry(0, 2, 32'h20, 64'hFFFF_FFFF_FFFF_FFFF, 2'b01, 8'd1, 1'b1, 64'd0);
     lock_enable_scan();
     wait_fault_detect(6000);
     expect_equal("ooo_interleaving_result", fault_or_result, 64'h3F);
@@ -912,7 +915,7 @@ begin
     setup_default_base();
     invalid_rid_master = 0;
     ext_mem[0][0] = 64'h1;
-    config_entry(0, 0, 32'h0, 64'hFFFF_FFFF_FFFF_FFFF, 2'b01, 8'd0, 1'b1);
+    config_entry(0, 0, 32'h0, 64'hFFFF_FFFF_FFFF_FFFF, 2'b01, 8'd0, 1'b1, 64'd0);
     lock_enable_scan();
     wait_fault_detect(5000);
     expect_equal("invalid_rid_fault", {63'd0, fault_detect}, 64'h1);
@@ -927,7 +930,7 @@ begin
     reset_dut();
     setup_default_base();
     ext_mem[0][0] = 64'h40;
-    config_entry(0, 0, 32'h0, 64'hFFFF_FFFF_FFFF_FFFF, 2'b01, 8'd0, 1'b1);
+    config_entry(0, 0, 32'h0, 64'hFFFF_FFFF_FFFF_FFFF, 2'b01, 8'd0, 1'b1, 64'd0);
     lock_enable_scan();
     wait_fault_detect(5000);
     expect_equal("aou_rcheck_ok_result", fault_or_result, 64'h40);
@@ -944,7 +947,7 @@ begin
     rcheck_error_master = 0;
     rcheck_error_beat = 0;
     ext_mem[0][0] = 64'h0;
-    config_entry(0, 0, 32'h0, 64'hFFFF_FFFF_FFFF_FFFF, 2'b01, 8'd0, 1'b1);
+    config_entry(0, 0, 32'h0, 64'hFFFF_FFFF_FFFF_FFFF, 2'b01, 8'd0, 1'b1, 64'd0);
     lock_enable_scan();
     wait_fault_detect(5000);
     expect_equal("aou_rcheck_error_fault", {63'd0, fault_detect}, 64'h1);
@@ -964,7 +967,7 @@ begin
     ext_mem[0][1] = 64'h0;
     ext_mem[0][2] = 64'h0;
     ext_mem[0][3] = 64'h0;
-    config_entry(0, 0, 32'h0, 64'hFFFF_FFFF_FFFF_FFFF, 2'b01, 8'd3, 1'b1);
+    config_entry(0, 0, 32'h0, 64'hFFFF_FFFF_FFFF_FFFF, 2'b01, 8'd3, 1'b1, 64'd0);
     lock_enable_scan();
     wait_fault_detect(6000);
     expect_equal("aou_rcheck_burst_fault", {63'd0, fault_detect}, 64'h1);
@@ -986,7 +989,7 @@ begin
 
     reset_dut();
     setup_default_base();
-    config_entry(0, 0, 32'h0, 64'hFFFF_FFFF_FFFF_FFFF, 2'b11, 8'd0, 1'b1);
+    config_entry(0, 0, 32'h0, 64'hFFFF_FFFF_FFFF_FFFF, 2'b11, 8'd0, 1'b1, 64'd0);
     axi_cfg_write(ADDR_READ_INTERVAL, 64'd8);
     axi_cfg_write(ADDR_CONTROL, 64'h8);
     wait_cycles(10);
@@ -994,7 +997,7 @@ begin
 
     reset_dut();
     setup_default_base();
-    config_entry(0, 0, 32'h0, 64'hFFFF_FFFF_FFFF_FFFF, 2'b10, 8'd2, 1'b1);
+    config_entry(0, 0, 32'h0, 64'hFFFF_FFFF_FFFF_FFFF, 2'b10, 8'd2, 1'b1, 64'd0);
     axi_cfg_write(ADDR_READ_INTERVAL, 64'd8);
     axi_cfg_write(ADDR_CONTROL, 64'h8);
     wait_cycles(10);
@@ -1023,7 +1026,7 @@ begin
     case_fail = 0;
     reset_dut();
     setup_default_base();
-    config_entry(0, 0, 32'h0, 64'hFFFF_FFFF_FFFF_FFFF, 2'b01, 8'd0, 1'b1);
+    config_entry(0, 0, 32'h0, 64'hFFFF_FFFF_FFFF_FFFF, 2'b01, 8'd0, 1'b1, 64'd0);
     axi_cfg_write(ADDR_READ_INTERVAL, 64'd8);
     axi_cfg_write(ADDR_CONTROL, 64'h8);
 
@@ -1040,6 +1043,72 @@ begin
     end
     release dut.u_cfg.read_interval_inv;
     pass_case("latent_fault_flow");
+end
+endtask
+
+// ── NEW: Expected value mismatch test ──
+// Verifies that when readback != expected (under mask), fault_detect asserts
+// and error_code indicates expected mismatch.
+task expected_mismatch_flow;
+    reg [DATA_W-1:0] status;
+begin
+    case_fail = 0;
+    reset_dut();
+    setup_default_base();
+    // Store data=0x1234 but expected=0x0 → mismatch under mask=all-ones
+    ext_mem[0][0] = 64'h0000_0000_0000_1234;
+    config_entry(0, 0, 32'h0, 64'hFFFF_FFFF_FFFF_FFFF, 2'b01, 8'd0, 1'b1,
+                 64'h0000_0000_0000_0000);
+    lock_enable_scan();
+    wait_fault_detect(5000);
+    expect_equal("expected_mismatch_fault", {63'd0, fault_detect}, 64'h1);
+    // External fault due to Mask+OR non-zero (0x1234 != 0)
+    expect_equal("expected_mismatch_code", {56'd0, core_error_code}, 64'h30);
+    pass_case("expected_mismatch_flow");
+end
+endtask
+
+// ── NEW: Expected value match test ──
+// Verifies that when readback == expected (under mask), no expected-mismatch
+// fault is triggered (only Mask+OR checks for non-zero bits).
+task expected_match_flow;
+begin
+    case_fail = 0;
+    reset_dut();
+    setup_default_base();
+    // Store data=0x0, expected=0x0 → data == expected
+    ext_mem[0][0] = 64'h0;
+    config_entry(0, 0, 32'h0, 64'hFFFF_FFFF_FFFF_FFFF, 2'b01, 8'd0, 1'b1,
+                 64'd0);
+    lock_enable_scan();
+    wait_scan_done(3000);
+    // No fault expected: data==expected==0, Mask+OR result == 0
+    expect_equal("expected_match_result", fault_or_result, 64'h0);
+    expect_equal("expected_match_fault", {63'd0, fault_detect}, 64'h0);
+    pass_case("expected_match_flow");
+end
+endtask
+
+// ── NEW: Expected masked comparison test ──
+// Verifies that mask is applied correctly for expected comparison.
+// data=0xFF, expected=0x0F, mask=0x0F → (data&mask)==(expected&mask)==0x0F → match
+task expected_masked_match_flow;
+begin
+    case_fail = 0;
+    reset_dut();
+    setup_default_base();
+    // data=0xFF, mask=0x0F, expected=0x0F
+    // (0xFF & 0x0F) = 0x0F, (0x0F & 0x0F) = 0x0F → MATCH
+    // But OR accumulation: 0xFF & 0x0F = 0x0F ≠ 0 → external fault for non-zero
+    ext_mem[0][0] = 64'h0000_0000_0000_00FF;
+    config_entry(0, 0, 32'h0, 64'h0000_0000_0000_000F, 2'b01, 8'd0, 1'b1,
+                 64'h0000_0000_0000_000F);
+    lock_enable_scan();
+    wait_fault_detect(5000);
+    // Mask+OR detects non-zero bits (data&mask=0x0F ≠ 0 → external fault)
+    expect_equal("expected_masked_result", fault_or_result, 64'hF);
+    expect_equal("expected_masked_fault", {63'd0, fault_detect}, 64'h1);
+    pass_case("expected_masked_match_flow");
 end
 endtask
 
@@ -1083,6 +1152,11 @@ initial begin
     aou_rcheck_burst_error_flow();
     config_error_flow();
     latent_fault_flow();
+
+    // ── New integrated-feature tests ──
+    expected_mismatch_flow();
+    expected_match_flow();
+    expected_masked_match_flow();
 
     if (total_fail == 0) begin
         $display("PASS: safety_island_top full test completed, cases=%0d", total_pass);
