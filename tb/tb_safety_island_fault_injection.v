@@ -16,6 +16,7 @@ localparam [31:0] ADDR_ENTRY_REGION  = 32'h0000_1000;
 localparam [31:0] ENTRY_OFFSET_OFF   = 32'h0000_0000;
 localparam [31:0] ENTRY_MASK_OFF     = 32'h0000_0008;
 localparam [31:0] ENTRY_BURST_OFF    = 32'h0000_0010;
+localparam [31:0] ENTRY_EXPECTED_OFF = 32'h0000_0018;
 
 reg clk;
 reg rst;
@@ -346,6 +347,7 @@ begin
     axi_cfg_write(ADDR_ENTRY_REGION + ENTRY_OFFSET_OFF, 64'd0);
     axi_cfg_write(ADDR_ENTRY_REGION + ENTRY_MASK_OFF, 64'hFFFF_FFFF_FFFF_FFFF);
     axi_cfg_write(ADDR_ENTRY_REGION + ENTRY_BURST_OFF, 64'h0000_0000_0001_0001);
+    axi_cfg_write(ADDR_ENTRY_REGION + ENTRY_EXPECTED_OFF, 64'd0);
     axi_cfg_write(ADDR_CONTROL, 64'h0000_0000_0000_000B);
     wait_cycles(2);
 end
@@ -517,6 +519,16 @@ begin
 end
 endtask
 
+task run_cfg_expected_shadow_stuck;
+begin
+    reset_dut();
+    config_minimal();
+    force dut.u_cfg.expected_inv_q[0] = 64'hFFFF_FFFF_FFFF_FFFF;
+    expect_fault_within_10("expected_inv_q0", "config_register", 1'b1, 1'b0, 1'b1);
+    release dut.u_cfg.expected_inv_q[0];
+end
+endtask
+
 task run_core_state_inv_stuck;
 begin
     reset_dut();
@@ -652,6 +664,19 @@ begin
 end
 endtask
 
+reg [1023:0] fsdb_file;
+
+initial begin
+    if (!$value$plusargs("FSDB=%s", fsdb_file)) begin
+        fsdb_file = "fault_injection.fsdb";
+    end
+
+    $display("[%0t] FSDB dump start: %0s", $time, fsdb_file);
+    $fsdbDumpfile(fsdb_file);
+    $fsdbDumpvars(0, tb_safety_island_fault_injection);
+    $fsdbDumpMDA();
+end
+
 initial begin
     clk = 1'b0;
     rst = 1'b1;
@@ -671,6 +696,7 @@ initial begin
     run_cfg_mask_shadow_stuck();
     run_cfg_burst_shadow_stuck();
     run_cfg_entry_valid_shadow_stuck();
+    run_cfg_expected_shadow_stuck();
     run_core_state_inv_stuck();
     run_core_accum_inv_stuck();
     run_pending_wr_ptr_stuck();
@@ -704,6 +730,9 @@ initial begin
         $display("PASS: safety_island fault injection campaign completed");
     else
         $display("FAIL: safety_island fault injection campaign undetected=%0d", undetected_cases);
+
+
+
     $finish;
 end
 
