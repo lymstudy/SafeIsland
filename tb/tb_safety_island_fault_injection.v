@@ -652,6 +652,21 @@ begin
 end
 endtask
 
+reg [1023:0] fsdb_file;
+
+reg [1023:0] fsdb_file;
+
+initial begin
+    if (!$value$plusargs("FSDB=%s", fsdb_file)) begin
+        fsdb_file = "fault_injection.fsdb";
+    end
+
+    $display("[%0t] FSDB dump start: %0s", $time, fsdb_file);
+    $fsdbDumpfile(fsdb_file);
+    $fsdbDumpvars(0, tb_safety_island_fault_injection);
+    $fsdbDumpMDA();
+end
+
 initial begin
     clk = 1'b0;
     rst = 1'b1;
@@ -704,6 +719,9 @@ initial begin
         $display("PASS: safety_island fault injection campaign completed");
     else
         $display("FAIL: safety_island fault injection campaign undetected=%0d", undetected_cases);
+
+
+
     $finish;
 end
 

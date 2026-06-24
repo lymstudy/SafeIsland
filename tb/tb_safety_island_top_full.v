@@ -1043,7 +1043,21 @@ begin
 end
 endtask
 
+reg [1023:0] fsdb_file;
+
 initial begin
+    if (!$value$plusargs("FSDB=%s", fsdb_file)) begin
+        fsdb_file = "full.fsdb";
+    end
+
+    $display("[%0t] FSDB dump start: %0s", $time, fsdb_file);
+    $fsdbDumpfile(fsdb_file);
+    $fsdbDumpvars(0, tb_safety_island_top_full);
+    $fsdbDumpMDA();
+end
+
+initial begin
+
     clk = 1'b0;
     rst = 1'b1;
     total_pass = 0;
@@ -1075,6 +1089,7 @@ initial begin
     end else begin
         $display("FAIL: safety_island_top full test completed, failures=%0d passes=%0d", total_fail, total_pass);
     end
+
     $finish;
 end
 
