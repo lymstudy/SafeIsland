@@ -27,7 +27,8 @@ module safety_island_top #(
     parameter TIMEOUT_CYCLES      = 1024,
     parameter SUPPORT_OUTSTANDING = 1,
     parameter MAX_OUTSTANDING     = 4,
-    parameter STUCK_AT_THRESHOLD  = 10
+    parameter STUCK_AT_THRESHOLD  = 10,
+    parameter CRC_WIDTH           = 16
 ) (
     input  wire                                      clk,
     input  wire                                      rst,
@@ -108,7 +109,7 @@ module safety_island_top #(
     input  wire [NUM_MASTERS*2-1:0]                  m_axi_rresp_flat,
     input  wire [NUM_MASTERS-1:0]                    m_axi_rlast_flat,
     input  wire [NUM_MASTERS-1:0]                    m_axi_rvalid_flat,
-    input  wire [NUM_MASTERS*8-1:0]                  m_axi_rcheck_flat,
+    input  wire [NUM_MASTERS*CRC_WIDTH-1:0]          m_axi_rcheck_flat,
     output wire [NUM_MASTERS-1:0]                    m_axi_rready_flat,
 
     // ─── Fault outputs (driven by fault_detector) ───
@@ -503,7 +504,8 @@ module safety_island_top #(
                 .DATA_WIDTH     (DATA_W),
                 .ID_WIDTH       (ID_W),
                 .TIMEOUT_CYCLES (TIMEOUT_CYCLES),
-                .MAX_OUTSTANDING(MAX_OUTSTANDING)
+                .MAX_OUTSTANDING(MAX_OUTSTANDING),
+                .CRC_WIDTH      (CRC_WIDTH)
             ) u_read_engine (
                 .clk           (clk),
                 .rst           (rst),
@@ -534,7 +536,7 @@ module safety_island_top #(
                 .m_axi_rresp   (m_axi_rresp_flat[mi*2 +: 2]),
                 .m_axi_rlast   (m_axi_rlast_flat[mi]),
                 .m_axi_rvalid  (m_axi_rvalid_flat[mi]),
-                .m_axi_rcheck  (m_axi_rcheck_flat[mi*8 +: 8]),
+                .m_axi_rcheck  (m_axi_rcheck_flat[mi*CRC_WIDTH +: CRC_WIDTH]),
                 .m_axi_rready  (m_axi_rready_flat[mi])
             );
         end

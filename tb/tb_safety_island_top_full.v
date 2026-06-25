@@ -10,6 +10,7 @@ localparam ID_W            = 4;
 localparam MAX_OUTSTANDING = 4;
 localparam MEM_WORDS       = 512;
 localparam Q_DEPTH         = 16;
+localparam TB_CRC_WIDTH    = 16;  // must match DUT CRC_WIDTH
 
 localparam [31:0] ADDR_CONTROL       = 32'h0000_0000;
 localparam [31:0] ADDR_READ_INTERVAL = 32'h0000_0008;
@@ -103,7 +104,7 @@ reg  [NUM_MASTERS*DATA_W-1:0]     m_axi_rdata_flat;
 reg  [NUM_MASTERS*2-1:0]          m_axi_rresp_flat;
 reg  [NUM_MASTERS-1:0]            m_axi_rlast_flat;
 reg  [NUM_MASTERS-1:0]            m_axi_rvalid_flat;
-reg  [NUM_MASTERS*8-1:0]          m_axi_rcheck_flat;
+reg  [NUM_MASTERS*TB_CRC_WIDTH-1:0] m_axi_rcheck_flat;
 wire [NUM_MASTERS-1:0]            m_axi_rready_flat;
 
 wire                  fault_detect;
@@ -145,7 +146,8 @@ safety_island_top #(
     .DATA_W(DATA_W),
     .ID_W(ID_W),
     .TIMEOUT_CYCLES(48),
-    .MAX_OUTSTANDING(MAX_OUTSTANDING)
+    .MAX_OUTSTANDING(MAX_OUTSTANDING),
+    .CRC_WIDTH(TB_CRC_WIDTH)
 ) dut (
     .clk(clk),
     .rst(rst),
@@ -275,6 +277,47 @@ begin
 end
 endfunction
 
+function [15:0] crc16_ccitt;
+    input [ID_W-1:0]             ar_id;
+    input [ADDR_W-1:0]           ar_addr;
+    input [7:0]                  ar_len;
+    input [2:0]                  ar_size;
+    input [1:0]                  ar_burst;
+    input [ID_W-1:0]             r_id;
+    input [DATA_W-1:0]           r_data;
+    input [1:0]                  r_resp;
+    input                        r_last;
+    reg [ID_W+ADDR_W+8+3+2-1:0] ar_payload;
+    reg [TB_CRC_WIDTH+ID_W+DATA_W+2+1-1:0] r_payload;
+    reg [15:0] ar_sig;
+    reg [15:0] crc;
+    reg feedback;
+    integer bit_i;
+begin
+    // Stage 1: CRC-16 of AR fields (poly 0x1021, init 0xFFFF)
+    ar_payload = {ar_id, ar_addr, ar_len, ar_size, ar_burst};
+    crc = 16'hFFFF;
+    for (bit_i = ID_W + ADDR_W + 8 + 3 + 2 - 1; bit_i >= 0; bit_i = bit_i - 1) begin
+        feedback = crc[15] ^ ar_payload[bit_i];
+        crc = {crc[14:0], 1'b0};
+        if (feedback)
+            crc = crc ^ 16'h1021;
+    end
+    ar_sig = crc;
+
+    // Stage 2: CRC-16 of {ar_sig, R fields} (poly 0x1021, init 0xFFFF)
+    r_payload = {ar_sig, r_id, r_data, r_resp, r_last};
+    crc = 16'hFFFF;
+    for (bit_i = TB_CRC_WIDTH + ID_W + DATA_W + 2 + 1 - 1; bit_i >= 0; bit_i = bit_i - 1) begin
+        feedback = crc[15] ^ r_payload[bit_i];
+        crc = {crc[14:0], 1'b0};
+        if (feedback)
+            crc = crc ^ 16'h1021;
+    end
+    crc16_ccitt = crc;
+end
+endfunction
+
 function [DATA_W-1:0] mem_read_data;
     input integer master;
     input [31:0] addr;
@@ -355,7 +398,7 @@ begin
     m_axi_rresp_flat = {(NUM_MASTERS*2){1'b0}};
     m_axi_rlast_flat = {NUM_MASTERS{1'b0}};
     m_axi_rvalid_flat = {NUM_MASTERS{1'b0}};
-    m_axi_rcheck_flat = {(NUM_MASTERS*8){1'b0}};
+    m_axi_rcheck_flat = {(NUM_MASTERS*TB_CRC_WIDTH){1'b0}};
 end
 endtask
 
@@ -560,7 +603,7 @@ reg [ID_W-1:0] resp_id;
 reg [DATA_W-1:0] resp_data;
 reg [1:0] resp_status;
 reg resp_last;
-reg [7:0] resp_check;
+reg [TB_CRC_WIDTH-1:0] resp_check;
 reg can_respond;
 always @(posedge clk) begin
     if (rst) begin
@@ -662,7 +705,20 @@ always @(posedge clk) begin
                     resp_data = mem_read_data(am, resp_addr);
                     resp_status = q_err[(am) * Q_DEPTH + (sel_q)] ? 2'b10 : 2'b00;
                     resp_last = (q_beat[(am) * Q_DEPTH + (sel_q)] == q_len[(am) * Q_DEPTH + (sel_q)]);
-                    resp_check = crc8_rbeat(resp_id, resp_data, resp_status, resp_last);
+                    // Parameterized CRC: compute with AR signature when CRC_WIDTH=16
+                    if (TB_CRC_WIDTH == 16) begin
+                        resp_check = crc16_ccitt(
+                            q_id[(am) * Q_DEPTH + (sel_q)],      // ARID
+                            q_addr[(am) * Q_DEPTH + (sel_q)],    // ARADDR
+                            q_len[(am) * Q_DEPTH + (sel_q)],     // ARLEN
+                            3'd3,                                 // ARSIZE
+                            q_burst[(am) * Q_DEPTH + (sel_q)],   // ARBURST
+                            resp_id, resp_data, resp_status, resp_last
+                        );
+                    end else begin
+                        resp_check = {8{1'b0}};
+                        resp_check[7:0] = crc8_rbeat(resp_id, resp_data, resp_status, resp_last);
+                    end
                     if ((am == rcheck_error_master) &&
                         ((rcheck_error_beat < 0) || (q_beat[(am) * Q_DEPTH + (sel_q)] == rcheck_error_beat[7:0])))
                         resp_check = resp_check ^ 8'h5A;
@@ -671,7 +727,7 @@ always @(posedge clk) begin
                     m_axi_rdata_flat[am*DATA_W +: DATA_W] <= resp_data;
                     m_axi_rresp_flat[am*2 +: 2] <= resp_status;
                     m_axi_rlast_flat[am] <= resp_last;
-                    m_axi_rcheck_flat[am*8 +: 8] <= resp_check;
+                    m_axi_rcheck_flat[am*TB_CRC_WIDTH +: TB_CRC_WIDTH] <= resp_check;
                 end
             end
         end
