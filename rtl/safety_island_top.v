@@ -142,6 +142,11 @@ module safety_island_top #(
     wire                                      cfg_illegal;
     wire                                      cfg_shadow_error;
 
+    wire                                      cfg_kat_enable;
+    wire [ADDR_W-1:0]                         cfg_kat_addr;
+    wire [DATA_W-1:0]                         cfg_kat_expected;
+    wire [DATA_W-1:0]                         cfg_kat_mask;
+
     //--------------------------------------------------------------------------
     // Core Logic ↔ Read Engine 信号
     //--------------------------------------------------------------------------
@@ -286,6 +291,10 @@ module safety_island_top #(
         .cfg_locked               (cfg_locked),
         .cfg_illegal              (cfg_illegal),
         .cfg_shadow_error         (cfg_shadow_error),
+        .kat_enable_out          (cfg_kat_enable),
+        .kat_addr_out            (cfg_kat_addr),
+        .kat_expected_out        (cfg_kat_expected),
+        .kat_mask_out            (cfg_kat_mask),
         .scan_busy                (scan_busy),
         .scan_done_pulse          (scan_done_pulse),
         .current_master_idx       (current_master_idx),
@@ -331,6 +340,10 @@ module safety_island_top #(
         .cfg_locked           (cfg_locked),
         .cfg_illegal          (cfg_illegal),
         .cfg_shadow_error     (cfg_shadow_error),
+        .kat_enable              (cfg_kat_enable),
+        .kat_addr                (cfg_kat_addr),
+        .kat_expected            (cfg_kat_expected),
+        .kat_mask                (cfg_kat_mask),
         .m_read_req           (core_read_req),
         .m_read_addr_flat     (core_read_addr_flat),
         .m_burst_type_flat    (core_burst_type_flat),

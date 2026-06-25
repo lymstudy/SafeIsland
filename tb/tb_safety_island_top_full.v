@@ -27,6 +27,11 @@ localparam [31:0] ENTRY_MASK_OFF     = 32'h0000_0008;
 localparam [31:0] ENTRY_BURST_OFF    = 32'h0000_0010;
 localparam [31:0] ENTRY_EXPECTED_OFF = 32'h0000_0018;
 
+localparam [31:0] ADDR_KAT_CTRL     = 32'h0000_0038;
+localparam [31:0] ADDR_KAT_ADDR     = 32'h0000_0040;
+localparam [31:0] ADDR_KAT_EXPECTED = 32'h0000_0048;
+localparam [31:0] ADDR_KAT_MASK     = 32'h0000_0050;
+
 reg clk;
 reg rst;
 
@@ -787,6 +792,18 @@ begin
 end
 endtask
 
+task config_kat;
+    input [ADDR_W-1:0] addr;
+    input [DATA_W-1:0] expected;
+    input [DATA_W-1:0] mask;
+begin
+    axi_cfg_write(ADDR_KAT_ADDR, {{(DATA_W-ADDR_W){1'b0}}, addr});
+    axi_cfg_write(ADDR_KAT_EXPECTED, expected);
+    axi_cfg_write(ADDR_KAT_MASK, mask);
+    axi_cfg_write(ADDR_KAT_CTRL, 64'h1);  // enable KAT
+end
+endtask
+
 task basic_fault_flow;
 begin
     case_fail = 0;
@@ -1283,6 +1300,86 @@ begin
 end
 endtask
 
+task kat_pass_flow;
+    reg [DATA_W-1:0] status;
+begin
+    case_fail = 0;
+    reset_dut();
+    setup_default_base();
+    // Set known value at KAT address
+    ext_mem[(0) * MEM_WORDS + (0)] = 64'h5A5A_5A5A_5A5A_5A5A;
+    config_entry(0, 0, 32'h0, 64'hFFFF_FFFF_FFFF_FFFF, 2'b01, 8'd0, 1'b1, 64'd0);
+    // Configure KAT: address=0x0, expected=0x5A5A..., mask=all-ones
+    config_kat(32'h0000_0000, 64'h5A5A_5A5A_5A5A_5A5A, 64'hFFFF_FFFF_FFFF_FFFF);
+    lock_enable_scan();
+    wait_scan_done(5000);
+    // KAT passes → scan completes normally
+    if (safety_island_fault_detect) begin
+        $display("FAIL: KAT pass test triggered safety_island_fault_detect");
+        case_fail = case_fail + 1;
+        total_fail = total_fail + 1;
+    end
+    pass_case("kat_pass_flow");
+end
+endtask
+
+task kat_fail_flow;
+begin
+    case_fail = 0;
+    reset_dut();
+    setup_default_base();
+    ext_mem[(0) * MEM_WORDS + (0)] = 64'h0000_0000_0000_0000;
+    config_entry(0, 0, 32'h0, 64'hFFFF_FFFF_FFFF_FFFF, 2'b01, 8'd0, 1'b1, 64'd0);
+    // KAT expects 0x5A5A but memory has 0x0 → KAT fails
+    config_kat(32'h0000_0000, 64'h5A5A_5A5A_5A5A_5A5A, 64'hFFFF_FFFF_FFFF_FFFF);
+    lock_enable_scan();
+    wait_fault_detect(5000);
+    expect_equal("kat_fail_safety", {63'd0, safety_island_fault_detect}, 64'h1);
+    expect_equal("kat_fail_code", {56'd0, core_error_code}, 64'h47);
+    pass_case("kat_fail_flow");
+end
+endtask
+
+task kat_disabled_flow;
+begin
+    case_fail = 0;
+    reset_dut();
+    setup_default_base();
+    ext_mem[(0) * MEM_WORDS + (0)] = 64'h0;
+    config_entry(0, 0, 32'h0, 64'hFFFF_FFFF_FFFF_FFFF, 2'b01, 8'd0, 1'b1, 64'd0);
+    // Do NOT enable KAT
+    lock_enable_scan();
+    wait_scan_done(3000);
+    expect_equal("kat_disabled_fault", {63'd0, fault_detect}, 64'h0);
+    pass_case("kat_disabled_flow");
+end
+endtask
+
+task kat_araddr_corrupt_flow;
+begin
+    case_fail = 0;
+    $display("NOTE: kat_araddr_corrupt_flow requires CRC_WIDTH=16");
+    reset_dut();
+    setup_default_base();
+    ext_mem[(0) * MEM_WORDS + (0)] = 64'h5A5A_5A5A_5A5A_5A5A;
+    config_entry(0, 0, 32'h0, 64'hFFFF_FFFF_FFFF_FFFF, 2'b01, 8'd0, 1'b1, 64'd0);
+    config_kat(32'h0000_0000, 64'h5A5A_5A5A_5A5A_5A5A, 64'hFFFF_FFFF_FFFF_FFFF);
+    lock_enable_scan();
+    wait_cycles(3);
+    // Force ARADDR corruption on KAT read
+    force dut.gen_read_master[0].u_read_engine.m_axi_araddr = 32'h0000_0008;
+    wait_fault_detect(5000);
+    // Either E2E CRC catches it (bus fault) or KAT catches it (safety fault)
+    if (!fault_detect && !safety_island_fault_detect) begin
+        $display("FAIL: KAT addr corrupt not detected");
+        case_fail = case_fail + 1;
+        total_fail = total_fail + 1;
+    end
+    release dut.gen_read_master[0].u_read_engine.m_axi_araddr;
+    pass_case("kat_araddr_corrupt_flow");
+end
+endtask
+
 initial begin
     $dumpfile("sim_output/safety_island_top_full.vcd");
     $dumpvars(0, tb_safety_island_top_full);
@@ -1325,6 +1422,11 @@ initial begin
     heartbeat_pass_flow();
     heartbeat_fail_flow();
     heartbeat_no_interfere_flow();
+
+    kat_pass_flow();
+    kat_fail_flow();
+    kat_disabled_flow();
+    kat_araddr_corrupt_flow();
 
     if (total_fail == 0) begin
         $display("PASS: safety_island_top full test completed, cases=%0d", total_pass);
