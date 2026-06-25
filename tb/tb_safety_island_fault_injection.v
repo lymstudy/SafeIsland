@@ -701,6 +701,43 @@ begin
 end
 endtask
 
+task run_kat_mismatch_fault;
+begin
+    reset_dut();
+    resp_error_enable = 0;
+    config_minimal();
+    // Enable KAT with wrong expected value
+    axi_cfg_write(32'h0000_0040, 64'd0);   // ADDR_KAT_ADDR = 0
+    axi_cfg_write(32'h0000_0048, 64'hDEAD_BEEF_DEAD_BEEF);  // ADDR_KAT_EXPECTED = bad value
+    axi_cfg_write(32'h0000_0050, 64'hFFFF_FFFF_FFFF_FFFF);   // ADDR_KAT_MASK = all ones
+    axi_cfg_write(32'h0000_0038, 64'h1);    // ADDR_KAT_CTRL = enable
+    expect_fault_within_10("kat_mismatch", "config_error", 1'b0, 1'b1, 1'b0);
+end
+endtask
+
+task run_tmr_double_fault;
+begin
+    reset_dut();
+    config_minimal();
+    force dut.u_core.state_b = 4'hF;
+    force dut.u_core.state_c = 4'hE;
+    expect_fault_within_10("tmr_double_fault", "core_register", 1'b0, 1'b1, 1'b0);
+    release dut.u_core.state_b;
+    release dut.u_core.state_c;
+end
+endtask
+
+task run_e2e_crc16_mismatch;
+begin
+    reset_dut();
+    config_minimal();
+    // Corrupt ARADDR after AR handshake to cause CRC mismatch
+    force dut.gen_read_master[0].u_read_engine.m_axi_araddr = 32'hDEAD_BEEF;
+    expect_fault_within_10("e2e_crc16_mismatch", "port_interface", 1'b1, 1'b0, 1'b0);
+    release dut.gen_read_master[0].u_read_engine.m_axi_araddr;
+end
+endtask
+
 task run_axi_timeout_fault;
 begin
     reset_dut();
@@ -758,6 +795,9 @@ initial begin
     run_transient_state_inv_flip();
     run_transient_accum_inv_flip();
     run_transient_cfg_shadow_flip();
+    run_kat_mismatch_fault();
+    run_tmr_double_fault();
+    run_e2e_crc16_mismatch();
 
     if (total_cases > 0)
         protection_rate_pct = ((corrected_cases + detected_cases) * 100) / total_cases;

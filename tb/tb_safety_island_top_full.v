@@ -1489,6 +1489,37 @@ begin
 end
 endtask
 
+task write_verify_pass_flow;
+    reg [DATA_W-1:0] rdback;
+begin
+    case_fail = 0;
+    reset_dut();
+    axi_cfg_write(ADDR_READ_INTERVAL, 64'd8);
+    axi_cfg_read(ADDR_READ_INTERVAL, rdback);
+    expect_equal("write_verify_pass_readback", rdback, 64'd8);
+    pass_case("write_verify_pass_flow");
+end
+endtask
+
+task write_verify_fail_flow;
+begin
+    case_fail = 0;
+    reset_dut();
+    setup_default_base();
+    axi_cfg_write(ADDR_READ_INTERVAL, 64'd8);
+    // Force the shadow register to mismatch
+    force dut.u_cfg.read_interval_inv = 64'hFFFF_FFFF_FFFF_FFFF;
+    wait_cycles(2);
+    if (!dut.u_cfg.cfg_shadow_error) begin
+        $display("FAIL: shadow_error not detected after forced mismatch");
+        case_fail = case_fail + 1;
+        total_fail = total_fail + 1;
+    end
+    release dut.u_cfg.read_interval_inv;
+    pass_case("write_verify_fail_flow");
+end
+endtask
+
 initial begin
     $dumpfile("sim_output/safety_island_top_full.vcd");
     $dumpvars(0, tb_safety_island_top_full);
@@ -1542,6 +1573,9 @@ initial begin
     tmr_state_double_fault_flow();
     tmr_fd_stuck_flow();
     tmr_cfg_locked_fault_flow();
+
+    write_verify_pass_flow();
+    write_verify_fail_flow();
 
     if (total_fail == 0) begin
         $display("PASS: safety_island_top full test completed, cases=%0d", total_pass);

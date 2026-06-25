@@ -136,6 +136,7 @@ assign cfg_illegal_r = (cfg_illegal_r_a & cfg_illegal_r_b) |
                        (cfg_illegal_r_a & cfg_illegal_r_c);
 
 reg scan_done_sticky;
+reg write_verify_pending;
 
 reg enable_inv;
 reg cfg_locked_inv;
@@ -417,6 +418,7 @@ always @(posedge clk) begin
         cfg_illegal_r_c   <= 1'b0;
         cfg_illegal_inv   <= 1'b1;
         scan_done_sticky  <= 1'b0;
+        write_verify_pending <= 1'b0;
 
         for (seq_m = 0; seq_m < NUM_MASTERS; seq_m = seq_m + 1) begin
             base_addr_q[seq_m]     <= {ADDR_W{1'b0}};
@@ -588,6 +590,15 @@ always @(posedge clk) begin
                 cfg_illegal_r_b  <= 1'b1;
                 cfg_illegal_r_c  <= 1'b1;
                 cfg_illegal_inv  <= 1'b0;
+            end
+
+            // Write-verify: check shadow consistency after write
+            if (shadow_error_comb && write_resp_comb == RESP_OKAY) begin
+                write_resp_comb = RESP_SLVERR;
+                cfg_illegal_r_a <= 1'b1;
+                cfg_illegal_r_b <= 1'b1;
+                cfg_illegal_r_c <= 1'b1;
+                cfg_illegal_inv <= 1'b0;
             end
 
             s_axi_bid     <= write_id_comb;
