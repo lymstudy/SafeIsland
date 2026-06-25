@@ -8,6 +8,7 @@ localparam ADDR_W          = 32;
 localparam DATA_W          = 64;
 localparam ID_W            = 4;
 localparam MAX_OUTSTANDING = 4;
+localparam CRC_WIDTH = 16;
 
 localparam [31:0] ADDR_CONTROL       = 32'h0000_0000;
 localparam [31:0] ADDR_READ_INTERVAL = 32'h0000_0008;
@@ -95,7 +96,7 @@ reg  [NUM_MASTERS*DATA_W-1:0]     m_axi_rdata_flat;
 reg  [NUM_MASTERS*2-1:0]          m_axi_rresp_flat;
 reg  [NUM_MASTERS-1:0]            m_axi_rlast_flat;
 reg  [NUM_MASTERS-1:0]            m_axi_rvalid_flat;
-reg  [NUM_MASTERS*8-1:0]          m_axi_rcheck_flat;
+reg  [NUM_MASTERS*CRC_WIDTH-1:0] m_axi_rcheck_flat;
 wire [NUM_MASTERS-1:0]            m_axi_rready_flat;
 
 wire                  fault_detect;
@@ -122,7 +123,8 @@ safety_island_top #(
     .ADDR_W(ADDR_W),
     .DATA_W(DATA_W),
     .ID_W(ID_W),
-    .MAX_OUTSTANDING(MAX_OUTSTANDING)
+    .MAX_OUTSTANDING(MAX_OUTSTANDING),
+    .CRC_WIDTH(CRC_WIDTH)
 ) dut (
     .clk(clk),
     .rst(rst),
@@ -232,6 +234,43 @@ begin
 end
 endfunction
 
+function [15:0] crc16_two_stage;
+    input [ID_W-1:0]   ar_id;
+    input [ADDR_W-1:0] ar_addr;
+    input [7:0]        ar_len;
+    input [1:0]        ar_burst;
+    input [ID_W-1:0]   r_id;
+    input [DATA_W-1:0] r_data;
+    input [1:0]        r_resp;
+    input              r_last;
+    reg [ID_W+ADDR_W+8+3+2-1:0] ar_payload;
+    reg [CRC_WIDTH+ID_W+DATA_W+2+1-1:0] r_payload;
+    reg [15:0] ar_sig;
+    reg [15:0] crc;
+    reg feedback;
+    integer bit_i;
+begin
+    // Stage 1: CRC-16 of AR fields (poly 0x1021, init 0xFFFF)
+    ar_payload = {ar_id, ar_addr, ar_len, 3'd3, ar_burst};
+    crc = 16'hFFFF;
+    for (bit_i = ID_W + ADDR_W + 8 + 3 + 2 - 1; bit_i >= 0; bit_i = bit_i - 1) begin
+        feedback = crc[15] ^ ar_payload[bit_i];
+        crc = {crc[14:0], 1'b0};
+        if (feedback) crc = crc ^ 16'h1021;
+    end
+    ar_sig = crc;
+    // Stage 2: CRC-16 of {ar_sig, R fields} (poly 0x1021, init 0xFFFF)
+    r_payload = {ar_sig, r_id, r_data, r_resp, r_last};
+    crc = 16'hFFFF;
+    for (bit_i = CRC_WIDTH + ID_W + DATA_W + 2 + 1 - 1; bit_i >= 0; bit_i = bit_i - 1) begin
+        feedback = crc[15] ^ r_payload[bit_i];
+        crc = {crc[14:0], 1'b0};
+        if (feedback) crc = crc ^ 16'h1021;
+    end
+    crc16_two_stage = crc;
+end
+endfunction
+
 task init_signals;
 begin
     s_axi_awid = {ID_W{1'b0}};
@@ -271,7 +310,7 @@ begin
     m_axi_rresp_flat = {(NUM_MASTERS*2){1'b0}};
     m_axi_rlast_flat = {NUM_MASTERS{1'b0}};
     m_axi_rvalid_flat = {NUM_MASTERS{1'b0}};
-    m_axi_rcheck_flat = {(NUM_MASTERS*8){1'b0}};
+    m_axi_rcheck_flat = {(NUM_MASTERS*CRC_WIDTH){1'b0}};
     resp_error_enable = 0;
     rid_mismatch_enable = 0;
     rcheck_error_enable = 0;
@@ -369,13 +408,30 @@ begin
                                      m_axi_arid_flat[ID_W-1:0];
         m_axi_rdata_flat[DATA_W-1:0] <= 64'd0;
         m_axi_rresp_flat[1:0] <= resp_error_enable ? 2'b10 : 2'b00;
-        m_axi_rcheck_flat[7:0] <= crc8_rbeat(rid_mismatch_enable ?
-                                             (m_axi_arid_flat[ID_W-1:0] ^ {{(ID_W-1){1'b0}}, 1'b1}) :
-                                             m_axi_arid_flat[ID_W-1:0],
-                                             64'd0,
-                                             resp_error_enable ? 2'b10 : 2'b00,
-                                             1'b1) ^
-                                  (rcheck_error_enable ? 8'h5A : 8'h00);
+        if (CRC_WIDTH == 16) begin
+            m_axi_rcheck_flat[CRC_WIDTH-1:0] <= crc16_two_stage(
+                rid_mismatch_enable ?
+                    (m_axi_arid_flat[ID_W-1:0] ^ {{(ID_W-1){1'b0}}, 1'b1}) :
+                    m_axi_arid_flat[ID_W-1:0],
+                m_axi_araddr_flat[ADDR_W-1:0],
+                m_axi_arlen_flat[7:0],
+                m_axi_arburst_flat[1:0],
+                rid_mismatch_enable ?
+                    (m_axi_arid_flat[ID_W-1:0] ^ {{(ID_W-1){1'b0}}, 1'b1}) :
+                    m_axi_arid_flat[ID_W-1:0],
+                64'd0,
+                resp_error_enable ? 2'b10 : 2'b00,
+                1'b1
+            ) ^ (rcheck_error_enable ? 16'h5A5A : 16'h0000);
+        end else begin
+            m_axi_rcheck_flat[7:0] <= crc8_rbeat(rid_mismatch_enable ?
+                                                 (m_axi_arid_flat[ID_W-1:0] ^ {{(ID_W-1){1'b0}}, 1'b1}) :
+                                                 m_axi_arid_flat[ID_W-1:0],
+                                                 64'd0,
+                                                 resp_error_enable ? 2'b10 : 2'b00,
+                                                 1'b1) ^
+                                      (rcheck_error_enable ? 8'h5A : 8'h00);
+        end
     end else if (m_axi_rvalid_flat[0] && m_axi_rready_flat[0]) begin
         m_axi_rvalid_flat[0] <= 1'b0;
         m_axi_rlast_flat[0] <= 1'b0;

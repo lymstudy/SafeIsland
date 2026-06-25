@@ -277,6 +277,43 @@ begin
 end
 endfunction
 
+function [7:0] crc8_two_stage;
+    input [ID_W-1:0]   ar_id;
+    input [ADDR_W-1:0] ar_addr;
+    input [7:0]        ar_len;
+    input [1:0]        ar_burst;
+    input [ID_W-1:0]   r_id;
+    input [DATA_W-1:0] r_data;
+    input [1:0]        r_resp;
+    input              r_last;
+    reg [ID_W+ADDR_W+8+3+2-1:0] ar_payload;
+    reg [8+ID_W+DATA_W+2+1-1:0] r_payload;
+    reg [7:0] ar_sig;
+    reg [7:0] crc;
+    reg feedback;
+    integer bit_i;
+begin
+    // Stage 1: CRC-8 of AR fields (poly 0x07, init 0x00)
+    ar_payload = {ar_id, ar_addr, ar_len, 3'd3, ar_burst};
+    crc = 8'h00;
+    for (bit_i = ID_W + ADDR_W + 8 + 3 + 2 - 1; bit_i >= 0; bit_i = bit_i - 1) begin
+        feedback = crc[7] ^ ar_payload[bit_i];
+        crc = {crc[6:0], 1'b0};
+        if (feedback) crc = crc ^ 8'h07;
+    end
+    ar_sig = crc;
+    // Stage 2: CRC-8 of {ar_sig, R fields} (poly 0x07, init 0x00)
+    r_payload = {ar_sig, r_id, r_data, r_resp, r_last};
+    crc = 8'h00;
+    for (bit_i = 8 + ID_W + DATA_W + 2 + 1 - 1; bit_i >= 0; bit_i = bit_i - 1) begin
+        feedback = crc[7] ^ r_payload[bit_i];
+        crc = {crc[6:0], 1'b0};
+        if (feedback) crc = crc ^ 8'h07;
+    end
+    crc8_two_stage = crc;
+end
+endfunction
+
 function [15:0] crc16_ccitt;
     input [ID_W-1:0]             ar_id;
     input [ADDR_W-1:0]           ar_addr;
@@ -717,7 +754,13 @@ always @(posedge clk) begin
                         );
                     end else begin
                         resp_check = {8{1'b0}};
-                        resp_check[7:0] = crc8_rbeat(resp_id, resp_data, resp_status, resp_last);
+                        resp_check[7:0] = crc8_two_stage(
+                            q_id[(am) * Q_DEPTH + (sel_q)],
+                            q_addr[(am) * Q_DEPTH + (sel_q)],
+                            q_len[(am) * Q_DEPTH + (sel_q)],
+                            q_burst[(am) * Q_DEPTH + (sel_q)],
+                            resp_id, resp_data, resp_status, resp_last
+                        );
                     end
                     if ((am == rcheck_error_master) &&
                         ((rcheck_error_beat < 0) || (q_beat[(am) * Q_DEPTH + (sel_q)] == rcheck_error_beat[7:0])))
