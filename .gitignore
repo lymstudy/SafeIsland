@@ -1,0 +1,5 @@
+.superpowers/
+sim_output/
+sim/out/
+*.wlf
+*.vcd
