@@ -1380,6 +1380,115 @@ begin
 end
 endtask
 
+task tmr_state_ok_flow;
+    reg [DATA_W-1:0] status;
+begin
+    case_fail = 0;
+    reset_dut();
+    setup_default_base();
+    ext_mem[(0) * MEM_WORDS + (0)] = 64'h0;
+    config_entry(0, 0, 32'h0, 64'hFFFF_FFFF_FFFF_FFFF, 2'b01, 8'd0, 1'b1, 64'd0);
+    lock_enable_scan();
+    wait_scan_done(3000);
+    // Check that TMR state is consistent (no mismatch during normal operation)
+    if (dut.u_core.state_tmr_mismatch) begin
+        $display("FAIL: state_tmr_mismatch asserted during normal operation");
+        case_fail = case_fail + 1;
+        total_fail = total_fail + 1;
+    end
+    pass_case("tmr_state_ok_flow");
+end
+endtask
+
+task tmr_state_minority_flow;
+begin
+    case_fail = 0;
+    reset_dut();
+    setup_default_base();
+    ext_mem[(0) * MEM_WORDS + (0)] = 64'h0;
+    config_entry(0, 0, 32'h0, 64'hFFFF_FFFF_FFFF_FFFF, 2'b01, 8'd0, 1'b1, 64'd0);
+    lock_enable_scan();
+    wait_cycles(10);
+    // Force one TMR copy to differ — majority still correct
+    force dut.u_core.state_b = 4'hF;
+    wait_cycles(5);
+    // FSM should still operate (majority of state_a and state_c)
+    if (dut.u_core.state_tmr_mismatch) begin
+        $display("FAIL: state_tmr_mismatch asserted on single-copy fault");
+        case_fail = case_fail + 1;
+        total_fail = total_fail + 1;
+    end
+    release dut.u_core.state_b;
+    wait_cycles(5);
+    pass_case("tmr_state_minority_flow");
+end
+endtask
+
+task tmr_state_double_fault_flow;
+begin
+    case_fail = 0;
+    reset_dut();
+    setup_default_base();
+    ext_mem[(0) * MEM_WORDS + (0)] = 64'h0;
+    config_entry(0, 0, 32'h0, 64'hFFFF_FFFF_FFFF_FFFF, 2'b01, 8'd0, 1'b1, 64'd0);
+    lock_enable_scan();
+    wait_cycles(10);
+    // Force two TMR copies to differ from third — no majority
+    force dut.u_core.state_b = 4'hF;
+    force dut.u_core.state_c = 4'hE;
+    wait_cycles(5);
+    // TMR mismatch should be detected
+    if (!dut.u_core.state_tmr_mismatch) begin
+        $display("FAIL: state_tmr_mismatch not asserted on double fault");
+        case_fail = case_fail + 1;
+        total_fail = total_fail + 1;
+    end
+    release dut.u_core.state_b;
+    release dut.u_core.state_c;
+    pass_case("tmr_state_double_fault_flow");
+end
+endtask
+
+task tmr_fd_stuck_flow;
+begin
+    case_fail = 0;
+    reset_dut();
+    setup_default_base();
+    ext_mem[(0) * MEM_WORDS + (0)] = 64'h4;
+    config_entry(0, 0, 32'h0, 64'hFFFF_FFFF_FFFF_FFFF, 2'b01, 8'd0, 1'b1, 64'd0);
+    lock_enable_scan();
+    // Force one fd driver stuck at 0
+    force dut.fd_b = 1'b0;
+    wait_fault_detect(5000);
+    // Majority vote (fd_a=1, fd_c=1) should still drive fault_detect=1
+    expect_equal("tmr_fd_stuck_fault", {63'd0, fault_detect}, 64'h1);
+    release dut.fd_b;
+    pass_case("tmr_fd_stuck_flow");
+end
+endtask
+
+task tmr_cfg_locked_fault_flow;
+begin
+    case_fail = 0;
+    reset_dut();
+    setup_default_base();
+    config_entry(0, 0, 32'h0, 64'hFFFF_FFFF_FFFF_FFFF, 2'b01, 8'd0, 1'b1, 64'd0);
+    axi_cfg_write(ADDR_READ_INTERVAL, 64'd8);
+    axi_cfg_write(ADDR_CONTROL, 64'h8);  // lock
+    wait_cycles(5);
+    // Force one locked copy to 0 (unlocked)
+    force dut.u_cfg.cfg_locked_r_b = 1'b0;
+    // Majority vote still says locked
+    if (!dut.u_cfg.cfg_locked_r) begin
+        $display("FAIL: cfg_locked_r became 0 after single copy fault");
+        case_fail = case_fail + 1;
+        total_fail = total_fail + 1;
+    end
+    release dut.u_cfg.cfg_locked_r_b;
+    pass_case("tmr_cfg_locked_fault_flow");
+end
+endtask
+
 initial begin
     $dumpfile("sim_output/safety_island_top_full.vcd");
     $dumpvars(0, tb_safety_island_top_full);
@@ -1427,6 +1536,12 @@ initial begin
     kat_fail_flow();
     kat_disabled_flow();
     kat_araddr_corrupt_flow();
+
+    tmr_state_ok_flow();
+    tmr_state_minority_flow();
+    tmr_state_double_fault_flow();
+    tmr_fd_stuck_flow();
+    tmr_cfg_locked_fault_flow();
 
     if (total_fail == 0) begin
         $display("PASS: safety_island_top full test completed, cases=%0d", total_pass);

@@ -172,14 +172,36 @@ module safety_island_core_logic
     // 用于简单 outstanding 支持的寄存器和待处理请求 FIFO
     //--------------------------------------------------------------------------
 
-    reg [3:0]        state;
+    reg [3:0]        state_a, state_b, state_c;
     reg [3:0]        state_inv;
+    wire [3:0]       state;
+    wire             state_tmr_mismatch;
+
+    assign state = (state_a & state_b) | (state_b & state_c) | (state_a & state_c);
+    assign state_tmr_mismatch = |((state_a ^ state_b) & (state_b ^ state_c));
+
     reg [3:0]        state_next;
     reg [63:0]       interval_counter;
     reg              scan_once_d;
     reg              scan_once_pending;
-    reg              safety_fault_q;
-    reg [7:0]        safety_error_code_q;
+    reg              safety_fault_q_a, safety_fault_q_b, safety_fault_q_c;
+    wire             safety_fault_q;
+    wire             safety_fault_q_tmr_mismatch;
+
+    assign safety_fault_q = (safety_fault_q_a & safety_fault_q_b) |
+                            (safety_fault_q_b & safety_fault_q_c) |
+                            (safety_fault_q_a & safety_fault_q_c);
+    assign safety_fault_q_tmr_mismatch = (safety_fault_q_a ^ safety_fault_q_b) &
+                                         (safety_fault_q_b ^ safety_fault_q_c);
+    reg [7:0]        safety_error_code_q_a, safety_error_code_q_b, safety_error_code_q_c;
+    wire [7:0]       safety_error_code_q;
+    wire             safety_error_code_tmr_mismatch;
+
+    assign safety_error_code_q = (safety_error_code_q_a & safety_error_code_q_b) |
+                                 (safety_error_code_q_b & safety_error_code_q_c) |
+                                 (safety_error_code_q_a & safety_error_code_q_c);
+    assign safety_error_code_tmr_mismatch = |((safety_error_code_q_a ^ safety_error_code_q_b) &
+                                              (safety_error_code_q_b ^ safety_error_code_q_c));
 
     // Pending FIFO: stores mask, expected, master, entry for each outstanding req
     reg [DATA_W-1:0] pending_mask_q     [0:MAX_OUTSTANDING-1];
@@ -660,6 +682,9 @@ module safety_island_core_logic
         pending_valid_fault_comb    |
         accum_shadow_fault_comb     |
         kat_fail_comb               |
+        state_tmr_mismatch          |
+        safety_fault_q_tmr_mismatch |
+        safety_error_code_tmr_mismatch |
         outstanding_fault_comb;
     assign safety_fault_stable_comb = safety_fault_comb & safety_fault_q;
 
@@ -883,13 +908,19 @@ module safety_island_core_logic
 
     always @(posedge clk) begin
         if (rst) begin
-            state                     <= ST_IDLE;
+            state_a                   <= ST_IDLE;
+            state_b                   <= ST_IDLE;
+            state_c                   <= ST_IDLE;
             state_inv                 <= ~ST_IDLE;
             interval_counter          <= 64'd0;
             scan_once_d               <= 1'b0;
             scan_once_pending         <= 1'b0;
-            safety_fault_q            <= 1'b0;
-            safety_error_code_q       <= ERR_NONE;
+            safety_fault_q_a          <= 1'b0;
+            safety_fault_q_b          <= 1'b0;
+            safety_fault_q_c          <= 1'b0;
+            safety_error_code_q_a     <= ERR_NONE;
+            safety_error_code_q_b     <= ERR_NONE;
+            safety_error_code_q_c     <= ERR_NONE;
             fault_or_accum            <= {DATA_W{1'b0}};
             fault_or_accum_inv        <= {DATA_W{1'b1}};
             pending_wr_ptr            <= 32'd0;
@@ -937,12 +968,18 @@ module safety_island_core_logic
             if (clear_core_status) begin
                 // Only reset when no outstanding transactions are in flight
                 if (outstanding_count == 32'd0) begin
-                    state                     <= ST_IDLE;
+                    state_a                   <= ST_IDLE;
+                    state_b                   <= ST_IDLE;
+                    state_c                   <= ST_IDLE;
                     state_inv                 <= ~ST_IDLE;
                     interval_counter          <= 64'd0;
                     scan_once_pending         <= 1'b0;
-                    safety_fault_q            <= 1'b0;
-                    safety_error_code_q       <= ERR_NONE;
+                    safety_fault_q_a          <= 1'b0;
+                    safety_fault_q_b          <= 1'b0;
+                    safety_fault_q_c          <= 1'b0;
+                    safety_error_code_q_a     <= ERR_NONE;
+                    safety_error_code_q_b     <= ERR_NONE;
+                    safety_error_code_q_c     <= ERR_NONE;
                     fault_or_accum            <= {DATA_W{1'b0}};
                     fault_or_accum_inv        <= {DATA_W{1'b1}};
                     pending_wr_ptr            <= 32'd0;
@@ -964,16 +1001,24 @@ module safety_island_core_logic
                     end
                 end else begin
                     // Wait for outstanding drain, force FSM to drain outstanding
-                    state           <= ST_DRAIN_MASTER;
-                    state_inv       <= ~ST_DRAIN_MASTER;
+                    state_a           <= ST_DRAIN_MASTER;
+                    state_b           <= ST_DRAIN_MASTER;
+                    state_c           <= ST_DRAIN_MASTER;
+                    state_inv         <= ~ST_DRAIN_MASTER;
                     scan_once_pending <= 1'b0;
                 end
             end else begin
-                state     <= state_next;
-                state_inv <= ~state_next;
-                scan_busy <= scan_busy_next_comb;
-                safety_fault_q      <= safety_fault_comb;
-                safety_error_code_q <= safety_error_code_comb;
+                state_a     <= state_next;
+                state_b     <= state_next;
+                state_c     <= state_next;
+                state_inv   <= ~state_next;
+                scan_busy   <= scan_busy_next_comb;
+                safety_fault_q_a      <= safety_fault_comb;
+                safety_fault_q_b      <= safety_fault_comb;
+                safety_fault_q_c      <= safety_fault_comb;
+                safety_error_code_q_a <= safety_error_code_comb;
+                safety_error_code_q_b <= safety_error_code_comb;
+                safety_error_code_q_c <= safety_error_code_comb;
 
                 if (scan_once_re)
                     scan_once_pending <= 1'b1;

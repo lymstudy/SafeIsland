@@ -121,14 +121,38 @@ reg [(DATA_W/8)-1:0] wstrb_q;
 reg              wlast_q;
 reg              w_seen_q;
 
-reg cfg_locked_r;
-reg cfg_illegal_r;
+reg cfg_locked_r_a, cfg_locked_r_b, cfg_locked_r_c;
+wire cfg_locked_r;
+
+assign cfg_locked_r = (cfg_locked_r_a & cfg_locked_r_b) |
+                      (cfg_locked_r_b & cfg_locked_r_c) |
+                      (cfg_locked_r_a & cfg_locked_r_c);
+
+reg cfg_illegal_r_a, cfg_illegal_r_b, cfg_illegal_r_c;
+wire cfg_illegal_r;
+
+assign cfg_illegal_r = (cfg_illegal_r_a & cfg_illegal_r_b) |
+                       (cfg_illegal_r_b & cfg_illegal_r_c) |
+                       (cfg_illegal_r_a & cfg_illegal_r_c);
+
 reg scan_done_sticky;
 
 reg enable_inv;
 reg cfg_locked_inv;
 reg cfg_illegal_inv;
 reg [63:0] read_interval_inv;
+
+// TMR shadow copies for enable
+reg enable_shadow_b, enable_shadow_c;
+wire enable_tmr_mismatch;
+assign enable_tmr_mismatch = (enable ^ enable_shadow_b) & (enable_shadow_b ^ enable_shadow_c);
+
+// TMR mismatch detection for cfg_locked_r and cfg_illegal_r
+wire cfg_locked_tmr_mismatch;
+wire cfg_illegal_tmr_mismatch;
+
+assign cfg_locked_tmr_mismatch  = (cfg_locked_r_a  ^ cfg_locked_r_b)  & (cfg_locked_r_b  ^ cfg_locked_r_c);
+assign cfg_illegal_tmr_mismatch = (cfg_illegal_r_a ^ cfg_illegal_r_b) & (cfg_illegal_r_b ^ cfg_illegal_r_c);
 
 reg [ADDR_W-1:0] base_addr_q     [0:NUM_MASTERS-1];
 reg [ADDR_W-1:0] base_addr_inv_q [0:NUM_MASTERS-1];
@@ -264,6 +288,9 @@ always @* begin
                         (cfg_illegal_inv != ~cfg_illegal_r) |
                         (read_interval_inv != ~read_interval);
 
+    if (cfg_locked_tmr_mismatch || cfg_illegal_tmr_mismatch || enable_tmr_mismatch)
+        shadow_error_comb = 1'b1;
+
     for (shadow_m = 0; shadow_m < NUM_MASTERS; shadow_m = shadow_m + 1) begin
         if (base_addr_inv_q[shadow_m] != ~base_addr_q[shadow_m])
             shadow_error_comb = 1'b1;
@@ -374,14 +401,20 @@ always @(posedge clk) begin
         wlast_q           <= 1'b0;
         w_seen_q          <= 1'b0;
         enable            <= 1'b0;
+        enable_shadow_b   <= 1'b0;
+        enable_shadow_c   <= 1'b0;
         enable_inv        <= 1'b1;
         scan_once         <= 1'b0;
         clear_core_status <= 1'b0;
         read_interval     <= 64'd0;
         read_interval_inv <= {64{1'b1}};
-        cfg_locked_r      <= 1'b0;
+        cfg_locked_r_a    <= 1'b0;
+        cfg_locked_r_b    <= 1'b0;
+        cfg_locked_r_c    <= 1'b0;
         cfg_locked_inv    <= 1'b1;
-        cfg_illegal_r     <= 1'b0;
+        cfg_illegal_r_a   <= 1'b0;
+        cfg_illegal_r_b   <= 1'b0;
+        cfg_illegal_r_c   <= 1'b0;
         cfg_illegal_inv   <= 1'b1;
         scan_done_sticky  <= 1'b0;
 
@@ -441,31 +474,41 @@ always @(posedge clk) begin
 
             if (write_len_comb != 8'd0 || write_size_comb != 3'd3 ||
                 write_burst_comb != 2'b01 || !write_last_comb) begin
-                write_resp_comb = RESP_SLVERR;
-                cfg_illegal_r   <= 1'b1;
-                cfg_illegal_inv <= 1'b0;
+                write_resp_comb  = RESP_SLVERR;
+                cfg_illegal_r_a  <= 1'b1;
+                cfg_illegal_r_b  <= 1'b1;
+                cfg_illegal_r_c  <= 1'b1;
+                cfg_illegal_inv  <= 1'b0;
             end else if (write_addr_comb == ADDR_CONTROL) begin
                 merged_write = apply_wstrb(control_read_value(1'b0), write_data_comb, write_strb_comb);
                 if (merged_write[0] != enable) begin
-                    enable     <= merged_write[0];
-                    enable_inv <= ~merged_write[0];
+                    enable          <= merged_write[0];
+                    enable_shadow_b <= merged_write[0];
+                    enable_shadow_c <= merged_write[0];
+                    enable_inv      <= ~merged_write[0];
                 end
                 if (merged_write[1])
                     scan_once <= 1'b1;
                 if (merged_write[2]) begin
                     clear_core_status <= 1'b1;
-                    cfg_illegal_r     <= 1'b0;
+                    cfg_illegal_r_a   <= 1'b0;
+                    cfg_illegal_r_b   <= 1'b0;
+                    cfg_illegal_r_c   <= 1'b0;
                     cfg_illegal_inv   <= 1'b1;
                     scan_done_sticky  <= 1'b0;
                 end
                 if (merged_write[3]) begin
-                    cfg_locked_r   <= 1'b1;
+                    cfg_locked_r_a <= 1'b1;
+                    cfg_locked_r_b <= 1'b1;
+                    cfg_locked_r_c <= 1'b1;
                     cfg_locked_inv <= 1'b0;
                 end
             end else if (cfg_locked_r) begin
-                write_resp_comb = RESP_SLVERR;
-                cfg_illegal_r   <= 1'b1;
-                cfg_illegal_inv <= 1'b0;
+                write_resp_comb  = RESP_SLVERR;
+                cfg_illegal_r_a  <= 1'b1;
+                cfg_illegal_r_b  <= 1'b1;
+                cfg_illegal_r_c  <= 1'b1;
+                cfg_illegal_inv  <= 1'b0;
             end else if (write_addr_comb == ADDR_READ_INTERVAL) begin
                 merged_write      = apply_wstrb(read_interval, write_data_comb, write_strb_comb);
                 read_interval     <= merged_write;
@@ -525,20 +568,26 @@ always @(posedge clk) begin
                             expected_inv_q[seq_idx]   <= ~merged_write;
                         end
                         default: begin
-                            write_resp_comb = RESP_SLVERR;
-                            cfg_illegal_r   <= 1'b1;
-                            cfg_illegal_inv <= 1'b0;
+                            write_resp_comb  = RESP_SLVERR;
+                            cfg_illegal_r_a  <= 1'b1;
+                            cfg_illegal_r_b  <= 1'b1;
+                            cfg_illegal_r_c  <= 1'b1;
+                            cfg_illegal_inv  <= 1'b0;
                         end
                     endcase
                 end else begin
-                    write_resp_comb = RESP_SLVERR;
-                    cfg_illegal_r   <= 1'b1;
-                    cfg_illegal_inv <= 1'b0;
+                    write_resp_comb  = RESP_SLVERR;
+                    cfg_illegal_r_a  <= 1'b1;
+                    cfg_illegal_r_b  <= 1'b1;
+                    cfg_illegal_r_c  <= 1'b1;
+                    cfg_illegal_inv  <= 1'b0;
                 end
             end else begin
-                write_resp_comb = RESP_SLVERR;
-                cfg_illegal_r   <= 1'b1;
-                cfg_illegal_inv <= 1'b0;
+                write_resp_comb  = RESP_SLVERR;
+                cfg_illegal_r_a  <= 1'b1;
+                cfg_illegal_r_b  <= 1'b1;
+                cfg_illegal_r_c  <= 1'b1;
+                cfg_illegal_inv  <= 1'b0;
             end
 
             s_axi_bid     <= write_id_comb;

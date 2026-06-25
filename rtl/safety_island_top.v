@@ -219,8 +219,22 @@ module safety_island_top #(
     // 顶层故障输出 = fault_detector 输出
     //--------------------------------------------------------------------------
 
-    assign fault_detect                    = fd_external_fault | fd_bus_fault | fd_cfg_fault;
-    assign safety_island_fault_detect      = fd_safety_island_fault | heartbeat_fault;
+    (* DONT_TOUCH = "TRUE" *) wire fd_a = fd_external_fault | fd_bus_fault | fd_cfg_fault;
+    (* DONT_TOUCH = "TRUE" *) wire fd_b = fd_external_fault | fd_bus_fault | fd_cfg_fault;
+    (* DONT_TOUCH = "TRUE" *) wire fd_c = fd_external_fault | fd_bus_fault | fd_cfg_fault;
+
+    wire fd_tmr_mismatch;
+    assign fault_detect = (fd_a & fd_b) | (fd_b & fd_c) | (fd_a & fd_c);
+    assign fd_tmr_mismatch = (fd_a ^ fd_b) & (fd_b ^ fd_c);
+
+    (* DONT_TOUCH = "TRUE" *) wire sifd_a = fd_safety_island_fault | heartbeat_fault;
+    (* DONT_TOUCH = "TRUE" *) wire sifd_b = fd_safety_island_fault | heartbeat_fault;
+    (* DONT_TOUCH = "TRUE" *) wire sifd_c = fd_safety_island_fault | heartbeat_fault;
+
+    wire sifd_tmr_mismatch;
+    assign safety_island_fault_detect = ((sifd_a & sifd_b) | (sifd_b & sifd_c) | (sifd_a & sifd_c))
+                                       | fd_tmr_mismatch | sifd_tmr_mismatch;
+    assign sifd_tmr_mismatch = (sifd_a ^ sifd_b) & (sifd_b ^ sifd_c);
     assign safety_island_latent_fault_detect = fd_safety_island_latent_fault |
                                               cfg_shadow_error | fd_safety_island_fault;
     assign fault_or_result                 = fd_fault_or_result;
