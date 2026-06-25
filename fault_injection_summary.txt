@@ -1,0 +1,1 @@
+FI_CASE: name=read_interval_inv type=config_register result=detected cycles=2 code=11

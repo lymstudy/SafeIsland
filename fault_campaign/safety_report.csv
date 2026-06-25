@@ -1,0 +1,6 @@
+Metric,Value,ASIL-D Target,Status
+SPFM,100.00%,>= 99.00%,PASS
+LFM,100.00%,>= 90.00%,PASS
+Total Faults,15,,
+Detected,15,,
+Not Detected,0,,

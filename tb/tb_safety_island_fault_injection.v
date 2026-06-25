@@ -664,17 +664,10 @@ begin
 end
 endtask
 
-reg [1023:0] fsdb_file;
-
 initial begin
-    if (!$value$plusargs("FSDB=%s", fsdb_file)) begin
-        fsdb_file = "fault_injection.fsdb";
-    end
-
-    $display("[%0t] FSDB dump start: %0s", $time, fsdb_file);
-    $fsdbDumpfile(fsdb_file);
-    $fsdbDumpvars(0, tb_safety_island_fault_injection);
-    $fsdbDumpMDA();
+    $dumpfile("sim_output/safety_island_fault_injection.vcd");
+    $dumpvars(0, tb_safety_island_fault_injection);
+    $display("[%0t] VCD dump start", $time);
 end
 
 initial begin

@@ -112,13 +112,13 @@ wire                  safety_island_latent_fault_detect;
 wire [DATA_W-1:0]     fault_or_result;
 wire [7:0]            core_error_code;
 
-reg [DATA_W-1:0] ext_mem [0:NUM_MASTERS-1][0:MEM_WORDS-1];
-reg [ID_W-1:0]   q_id    [0:NUM_MASTERS-1][0:Q_DEPTH-1];
-reg [ADDR_W-1:0] q_addr  [0:NUM_MASTERS-1][0:Q_DEPTH-1];
-reg [7:0]        q_len   [0:NUM_MASTERS-1][0:Q_DEPTH-1];
-reg [1:0]        q_burst [0:NUM_MASTERS-1][0:Q_DEPTH-1];
-reg [7:0]        q_beat  [0:NUM_MASTERS-1][0:Q_DEPTH-1];
-reg              q_err   [0:NUM_MASTERS-1][0:Q_DEPTH-1];
+reg [DATA_W-1:0] ext_mem [0:(NUM_MASTERS*MEM_WORDS)-1];
+reg [ID_W-1:0]   q_id    [0:(NUM_MASTERS*Q_DEPTH)-1];
+reg [ADDR_W-1:0] q_addr  [0:(NUM_MASTERS*Q_DEPTH)-1];
+reg [7:0]        q_len   [0:(NUM_MASTERS*Q_DEPTH)-1];
+reg [1:0]        q_burst [0:(NUM_MASTERS*Q_DEPTH)-1];
+reg [7:0]        q_beat  [0:(NUM_MASTERS*Q_DEPTH)-1];
+reg              q_err   [0:(NUM_MASTERS*Q_DEPTH)-1];
 integer active_q_idx [0:NUM_MASTERS-1];
 integer q_head [0:NUM_MASTERS-1];
 integer q_tail [0:NUM_MASTERS-1];
@@ -279,7 +279,7 @@ function [DATA_W-1:0] mem_read_data;
     input integer master;
     input [31:0] addr;
 begin
-    mem_read_data = ext_mem[master][addr[11:3]];
+    mem_read_data = ext_mem[(master) * MEM_WORDS + (addr[11:3])];
 end
 endfunction
 
@@ -303,14 +303,14 @@ begin
         r_count[em] = 0;
         max_q_count[em] = 0;
         for (ei = 0; ei < MEM_WORDS; ei = ei + 1)
-            ext_mem[em][ei] = {DATA_W{1'b0}};
+            ext_mem[(em) * MEM_WORDS + (ei)] = {DATA_W{1'b0}};
         for (ei = 0; ei < Q_DEPTH; ei = ei + 1) begin
-            q_id[em][ei] = {ID_W{1'b0}};
-            q_addr[em][ei] = {ADDR_W{1'b0}};
-            q_len[em][ei] = 8'd0;
-            q_burst[em][ei] = 2'b01;
-            q_beat[em][ei] = 8'd0;
-            q_err[em][ei] = 1'b0;
+            q_id[(em) * Q_DEPTH + (ei)] = {ID_W{1'b0}};
+            q_addr[(em) * Q_DEPTH + (ei)] = {ADDR_W{1'b0}};
+            q_len[(em) * Q_DEPTH + (ei)] = 8'd0;
+            q_burst[(em) * Q_DEPTH + (ei)] = 2'b01;
+            q_beat[(em) * Q_DEPTH + (ei)] = 8'd0;
+            q_err[(em) * Q_DEPTH + (ei)] = 1'b0;
         end
     end
 end
@@ -575,12 +575,12 @@ always @(posedge clk) begin
                 (q_count[am] < Q_DEPTH)) begin
                 m_axi_arready_flat[am] <= 1'b1;
                 if (!m_axi_arready_flat[am]) begin
-                    q_id[am][q_tail[am]]    <= m_axi_arid_flat[am*ID_W +: ID_W];
-                    q_addr[am][q_tail[am]]  <= m_axi_araddr_flat[am*ADDR_W +: ADDR_W];
-                    q_len[am][q_tail[am]]   <= m_axi_arlen_flat[am*8 +: 8];
-                    q_burst[am][q_tail[am]] <= m_axi_arburst_flat[am*2 +: 2];
-                    q_beat[am][q_tail[am]]  <= 8'd0;
-                    q_err[am][q_tail[am]]   <= (am == resp_error_master);
+                    q_id[(am) * Q_DEPTH + (q_tail[am])]    <= m_axi_arid_flat[am*ID_W +: ID_W];
+                    q_addr[(am) * Q_DEPTH + (q_tail[am])]  <= m_axi_araddr_flat[am*ADDR_W +: ADDR_W];
+                    q_len[(am) * Q_DEPTH + (q_tail[am])]   <= m_axi_arlen_flat[am*8 +: 8];
+                    q_burst[(am) * Q_DEPTH + (q_tail[am])] <= m_axi_arburst_flat[am*2 +: 2];
+                    q_beat[(am) * Q_DEPTH + (q_tail[am])]  <= 8'd0;
+                    q_err[(am) * Q_DEPTH + (q_tail[am])]   <= (am == resp_error_master);
                     next_tail = q_tail[am] + 1;
                     if (next_tail >= Q_DEPTH)
                         next_tail = 0;
@@ -611,12 +611,12 @@ always @(posedge clk) begin
                             if (shift_next >= Q_DEPTH)
                                 shift_next = 0;
                             if (shift_next != q_tail[am]) begin
-                                q_id[am][shift_q]    <= q_id[am][shift_next];
-                                q_addr[am][shift_q]  <= q_addr[am][shift_next];
-                                q_len[am][shift_q]   <= q_len[am][shift_next];
-                                q_burst[am][shift_q] <= q_burst[am][shift_next];
-                                q_beat[am][shift_q]  <= q_beat[am][shift_next];
-                                q_err[am][shift_q]   <= q_err[am][shift_next];
+                                q_id[(am) * Q_DEPTH + (shift_q)]    <= q_id[(am) * Q_DEPTH + (shift_next)];
+                                q_addr[(am) * Q_DEPTH + (shift_q)]  <= q_addr[(am) * Q_DEPTH + (shift_next)];
+                                q_len[(am) * Q_DEPTH + (shift_q)]   <= q_len[(am) * Q_DEPTH + (shift_next)];
+                                q_burst[(am) * Q_DEPTH + (shift_q)] <= q_burst[(am) * Q_DEPTH + (shift_next)];
+                                q_beat[(am) * Q_DEPTH + (shift_q)]  <= q_beat[(am) * Q_DEPTH + (shift_next)];
+                                q_err[(am) * Q_DEPTH + (shift_q)]   <= q_err[(am) * Q_DEPTH + (shift_next)];
                             end
                             shift_q = shift_next;
                         end
@@ -627,7 +627,7 @@ always @(posedge clk) begin
                     end
                     q_count[am] <= q_count[am] - 1;
                 end else begin
-                    q_beat[am][active_q_idx[am]] <= q_beat[am][active_q_idx[am]] + 8'd1;
+                    q_beat[(am) * Q_DEPTH + (active_q_idx[am])] <= q_beat[(am) * Q_DEPTH + (active_q_idx[am])] + 8'd1;
                 end
             end else if (!m_axi_rvalid_flat[am] && (q_count[am] > 0)) begin
                 can_respond = 1'b1;
@@ -651,20 +651,20 @@ always @(posedge clk) begin
                         end
                     end
                     active_q_idx[am] = sel_q;
-                    resp_addr = burst_byte_addr(q_addr[am][sel_q],
-                                                q_beat[am][sel_q],
-                                                q_len[am][sel_q],
-                                                q_burst[am][sel_q]);
+                    resp_addr = burst_byte_addr(q_addr[(am) * Q_DEPTH + (sel_q)],
+                                                q_beat[(am) * Q_DEPTH + (sel_q)],
+                                                q_len[(am) * Q_DEPTH + (sel_q)],
+                                                q_burst[(am) * Q_DEPTH + (sel_q)]);
                     if (am == invalid_rid_master)
                         resp_id = {ID_W{1'b1}};
                     else
-                        resp_id = q_id[am][sel_q];
+                        resp_id = q_id[(am) * Q_DEPTH + (sel_q)];
                     resp_data = mem_read_data(am, resp_addr);
-                    resp_status = q_err[am][sel_q] ? 2'b10 : 2'b00;
-                    resp_last = (q_beat[am][sel_q] == q_len[am][sel_q]);
+                    resp_status = q_err[(am) * Q_DEPTH + (sel_q)] ? 2'b10 : 2'b00;
+                    resp_last = (q_beat[(am) * Q_DEPTH + (sel_q)] == q_len[(am) * Q_DEPTH + (sel_q)]);
                     resp_check = crc8_rbeat(resp_id, resp_data, resp_status, resp_last);
                     if ((am == rcheck_error_master) &&
-                        ((rcheck_error_beat < 0) || (q_beat[am][sel_q] == rcheck_error_beat[7:0])))
+                        ((rcheck_error_beat < 0) || (q_beat[(am) * Q_DEPTH + (sel_q)] == rcheck_error_beat[7:0])))
                         resp_check = resp_check ^ 8'h5A;
                     m_axi_rvalid_flat[am] <= 1'b1;
                     m_axi_rid_flat[am*ID_W +: ID_W] <= resp_id;
@@ -693,7 +693,7 @@ begin
     case_fail = 0;
     reset_dut();
     setup_default_base();
-    ext_mem[0][0] = 64'h4;
+    ext_mem[(0) * MEM_WORDS + (0)] = 64'h4;
     config_entry(0, 0, 32'h0, 64'hFFFF_FFFF_FFFF_FFFF, 2'b01, 8'd0, 1'b1, 64'd0);
     lock_enable_scan();
     wait_fault_detect(5000);
@@ -709,7 +709,7 @@ begin
     case_fail = 0;
     reset_dut();
     setup_default_base();
-    ext_mem[0][0] = 64'h0;
+    ext_mem[(0) * MEM_WORDS + (0)] = 64'h0;
     config_entry(0, 0, 32'h0, 64'hFFFF_FFFF_FFFF_FFFF, 2'b01, 8'd0, 1'b1, 64'd0);
     lock_enable_scan();
     wait_scan_done(3000);
@@ -724,10 +724,10 @@ begin
     case_fail = 0;
     reset_dut();
     setup_default_base();
-    ext_mem[0][0] = 64'h1;
-    ext_mem[0][1] = 64'h2;
-    ext_mem[1][0] = 64'h10;
-    ext_mem[1][1] = 64'h20;
+    ext_mem[(0) * MEM_WORDS + (0)] = 64'h1;
+    ext_mem[(0) * MEM_WORDS + (1)] = 64'h2;
+    ext_mem[(1) * MEM_WORDS + (0)] = 64'h10;
+    ext_mem[(1) * MEM_WORDS + (1)] = 64'h20;
     config_entry(0, 0, 32'h0, 64'hFFFF_FFFF_FFFF_FFFF, 2'b01, 8'd0, 1'b1, 64'd0);
     config_entry(0, 1, 32'h8, 64'hFFFF_FFFF_FFFF_FFFF, 2'b01, 8'd0, 1'b1, 64'd0);
     config_entry(1, 0, 32'h0, 64'hFFFF_FFFF_FFFF_FFFF, 2'b01, 8'd0, 1'b1, 64'd0);
@@ -748,7 +748,7 @@ begin
     setup_default_base();
     exp = 64'h0;
     for (bi = 0; bi < 16; bi = bi + 1) begin
-        ext_mem[0][bi] = (64'h1 << bi);
+        ext_mem[(0) * MEM_WORDS + (bi)] = (64'h1 << bi);
         exp = exp | (64'h1 << bi);
     end
     config_entry(0, 0, 32'h0, 64'hFFFF_FFFF_FFFF_FFFF, 2'b01, 8'd15, 1'b1, 64'd0);
@@ -764,10 +764,10 @@ begin
     case_fail = 0;
     reset_dut();
     setup_default_base();
-    ext_mem[0][0] = 64'h1;
-    ext_mem[0][1] = 64'h2;
-    ext_mem[0][2] = 64'h4;
-    ext_mem[0][3] = 64'h8;
+    ext_mem[(0) * MEM_WORDS + (0)] = 64'h1;
+    ext_mem[(0) * MEM_WORDS + (1)] = 64'h2;
+    ext_mem[(0) * MEM_WORDS + (2)] = 64'h4;
+    ext_mem[(0) * MEM_WORDS + (3)] = 64'h8;
     config_entry(0, 0, 32'h10, 64'hFFFF_FFFF_FFFF_FFFF, 2'b10, 8'd3, 1'b1, 64'd0);
     lock_enable_scan();
     wait_fault_detect(6000);
@@ -782,7 +782,7 @@ begin
     reset_dut();
     setup_default_base();
     resp_error_master = 0;
-    ext_mem[0][0] = 64'h1;
+    ext_mem[(0) * MEM_WORDS + (0)] = 64'h1;
     config_entry(0, 0, 32'h0, 64'hFFFF_FFFF_FFFF_FFFF, 2'b01, 8'd0, 1'b1, 64'd0);
     lock_enable_scan();
     wait_fault_detect(5000);
@@ -814,10 +814,10 @@ begin
     reset_dut();
     setup_default_base();
     delay_until_ar_count = 4;
-    ext_mem[0][0] = 64'h1;
-    ext_mem[0][1] = 64'h2;
-    ext_mem[0][2] = 64'h4;
-    ext_mem[0][3] = 64'h8;
+    ext_mem[(0) * MEM_WORDS + (0)] = 64'h1;
+    ext_mem[(0) * MEM_WORDS + (1)] = 64'h2;
+    ext_mem[(0) * MEM_WORDS + (2)] = 64'h4;
+    ext_mem[(0) * MEM_WORDS + (3)] = 64'h8;
     config_entry(0, 0, 32'h0, 64'hFFFF_FFFF_FFFF_FFFF, 2'b01, 8'd0, 1'b1, 64'd0);
     config_entry(0, 1, 32'h8, 64'hFFFF_FFFF_FFFF_FFFF, 2'b01, 8'd0, 1'b1, 64'd0);
     config_entry(0, 2, 32'h10, 64'hFFFF_FFFF_FFFF_FFFF, 2'b01, 8'd0, 1'b1, 64'd0);
@@ -847,10 +847,10 @@ begin
     setup_default_base();
     delay_until_ar_count = 4;
     response_mode = 1;
-    ext_mem[0][0] = 64'h1;
-    ext_mem[0][1] = 64'h2;
-    ext_mem[0][2] = 64'h4;
-    ext_mem[0][3] = 64'h8;
+    ext_mem[(0) * MEM_WORDS + (0)] = 64'h1;
+    ext_mem[(0) * MEM_WORDS + (1)] = 64'h2;
+    ext_mem[(0) * MEM_WORDS + (2)] = 64'h4;
+    ext_mem[(0) * MEM_WORDS + (3)] = 64'h8;
     config_entry(0, 0, 32'h0,  64'hFFFF_FFFF_FFFF_FFFF, 2'b01, 8'd0, 1'b1, 64'd0);
     config_entry(0, 1, 32'h8,  64'hFFFF_FFFF_FFFF_FFFF, 2'b01, 8'd0, 1'b1, 64'd0);
     config_entry(0, 2, 32'h10, 64'hFFFF_FFFF_FFFF_FFFF, 2'b01, 8'd0, 1'b1, 64'd0);
@@ -858,7 +858,7 @@ begin
     lock_enable_scan();
     wait_fault_detect(6000);
     expect_equal("out_of_order_result", fault_or_result, 64'hF);
-    expect_equal("out_of_order_error", {56'd0, core_error_code}, 64'h30);
+    expect_equal("out_of_order_error", {56'd0, core_error_code}, 64'h31);
     pass_case("out_of_order_flow");
 end
 endtask
@@ -870,16 +870,16 @@ begin
     setup_default_base();
     delay_until_ar_count = 2;
     response_mode = 2;
-    ext_mem[0][0] = 64'h1;
-    ext_mem[0][1] = 64'h2;
-    ext_mem[0][2] = 64'h4;
-    ext_mem[0][3] = 64'h8;
+    ext_mem[(0) * MEM_WORDS + (0)] = 64'h1;
+    ext_mem[(0) * MEM_WORDS + (1)] = 64'h2;
+    ext_mem[(0) * MEM_WORDS + (2)] = 64'h4;
+    ext_mem[(0) * MEM_WORDS + (3)] = 64'h8;
     config_entry(0, 0, 32'h0,  64'hFFFF_FFFF_FFFF_FFFF, 2'b01, 8'd1, 1'b1, 64'd0);
     config_entry(0, 1, 32'h10, 64'hFFFF_FFFF_FFFF_FFFF, 2'b01, 8'd1, 1'b1, 64'd0);
     lock_enable_scan();
     wait_fault_detect(6000);
     expect_equal("interleaving_result", fault_or_result, 64'hF);
-    expect_equal("interleaving_error", {56'd0, core_error_code}, 64'h30);
+    expect_equal("interleaving_error", {56'd0, core_error_code}, 64'h31);
     pass_case("interleaving_flow");
 end
 endtask
@@ -891,19 +891,19 @@ begin
     setup_default_base();
     delay_until_ar_count = 3;
     response_mode = 3;
-    ext_mem[0][0] = 64'h01;
-    ext_mem[0][1] = 64'h02;
-    ext_mem[0][2] = 64'h04;
-    ext_mem[0][3] = 64'h08;
-    ext_mem[0][4] = 64'h10;
-    ext_mem[0][5] = 64'h20;
+    ext_mem[(0) * MEM_WORDS + (0)] = 64'h01;
+    ext_mem[(0) * MEM_WORDS + (1)] = 64'h02;
+    ext_mem[(0) * MEM_WORDS + (2)] = 64'h04;
+    ext_mem[(0) * MEM_WORDS + (3)] = 64'h08;
+    ext_mem[(0) * MEM_WORDS + (4)] = 64'h10;
+    ext_mem[(0) * MEM_WORDS + (5)] = 64'h20;
     config_entry(0, 0, 32'h0,  64'hFFFF_FFFF_FFFF_FFFF, 2'b01, 8'd1, 1'b1, 64'd0);
     config_entry(0, 1, 32'h10, 64'hFFFF_FFFF_FFFF_FFFF, 2'b01, 8'd1, 1'b1, 64'd0);
     config_entry(0, 2, 32'h20, 64'hFFFF_FFFF_FFFF_FFFF, 2'b01, 8'd1, 1'b1, 64'd0);
     lock_enable_scan();
     wait_fault_detect(6000);
     expect_equal("ooo_interleaving_result", fault_or_result, 64'h3F);
-    expect_equal("ooo_interleaving_error", {56'd0, core_error_code}, 64'h30);
+    expect_equal("ooo_interleaving_error", {56'd0, core_error_code}, 64'h31);
     pass_case("out_of_order_interleaving_flow");
 end
 endtask
@@ -914,7 +914,7 @@ begin
     reset_dut();
     setup_default_base();
     invalid_rid_master = 0;
-    ext_mem[0][0] = 64'h1;
+    ext_mem[(0) * MEM_WORDS + (0)] = 64'h1;
     config_entry(0, 0, 32'h0, 64'hFFFF_FFFF_FFFF_FFFF, 2'b01, 8'd0, 1'b1, 64'd0);
     lock_enable_scan();
     wait_fault_detect(5000);
@@ -929,12 +929,12 @@ begin
     case_fail = 0;
     reset_dut();
     setup_default_base();
-    ext_mem[0][0] = 64'h40;
+    ext_mem[(0) * MEM_WORDS + (0)] = 64'h40;
     config_entry(0, 0, 32'h0, 64'hFFFF_FFFF_FFFF_FFFF, 2'b01, 8'd0, 1'b1, 64'd0);
     lock_enable_scan();
     wait_fault_detect(5000);
     expect_equal("aou_rcheck_ok_result", fault_or_result, 64'h40);
-    expect_equal("aou_rcheck_ok_code", {56'd0, core_error_code}, 64'h30);
+    expect_equal("aou_rcheck_ok_code", {56'd0, core_error_code}, 64'h31);
     pass_case("aou_rcheck_ok_flow");
 end
 endtask
@@ -946,7 +946,7 @@ begin
     setup_default_base();
     rcheck_error_master = 0;
     rcheck_error_beat = 0;
-    ext_mem[0][0] = 64'h0;
+    ext_mem[(0) * MEM_WORDS + (0)] = 64'h0;
     config_entry(0, 0, 32'h0, 64'hFFFF_FFFF_FFFF_FFFF, 2'b01, 8'd0, 1'b1, 64'd0);
     lock_enable_scan();
     wait_fault_detect(5000);
@@ -963,10 +963,10 @@ begin
     setup_default_base();
     rcheck_error_master = 0;
     rcheck_error_beat = 1;
-    ext_mem[0][0] = 64'h0;
-    ext_mem[0][1] = 64'h0;
-    ext_mem[0][2] = 64'h0;
-    ext_mem[0][3] = 64'h0;
+    ext_mem[(0) * MEM_WORDS + (0)] = 64'h0;
+    ext_mem[(0) * MEM_WORDS + (1)] = 64'h0;
+    ext_mem[(0) * MEM_WORDS + (2)] = 64'h0;
+    ext_mem[(0) * MEM_WORDS + (3)] = 64'h0;
     config_entry(0, 0, 32'h0, 64'hFFFF_FFFF_FFFF_FFFF, 2'b01, 8'd3, 1'b1, 64'd0);
     lock_enable_scan();
     wait_fault_detect(6000);
@@ -1056,14 +1056,14 @@ begin
     reset_dut();
     setup_default_base();
     // Store data=0x1234 but expected=0x0 → mismatch under mask=all-ones
-    ext_mem[0][0] = 64'h0000_0000_0000_1234;
+    ext_mem[(0) * MEM_WORDS + (0)] = 64'h0000_0000_0000_1234;
     config_entry(0, 0, 32'h0, 64'hFFFF_FFFF_FFFF_FFFF, 2'b01, 8'd0, 1'b1,
                  64'h0000_0000_0000_0000);
     lock_enable_scan();
     wait_fault_detect(5000);
     expect_equal("expected_mismatch_fault", {63'd0, fault_detect}, 64'h1);
     // External fault due to Mask+OR non-zero (0x1234 != 0)
-    expect_equal("expected_mismatch_code", {56'd0, core_error_code}, 64'h30);
+    expect_equal("expected_mismatch_code", {56'd0, core_error_code}, 64'h31);
     pass_case("expected_mismatch_flow");
 end
 endtask
@@ -1077,7 +1077,7 @@ begin
     reset_dut();
     setup_default_base();
     // Store data=0x0, expected=0x0 → data == expected
-    ext_mem[0][0] = 64'h0;
+    ext_mem[(0) * MEM_WORDS + (0)] = 64'h0;
     config_entry(0, 0, 32'h0, 64'hFFFF_FFFF_FFFF_FFFF, 2'b01, 8'd0, 1'b1,
                  64'd0);
     lock_enable_scan();
@@ -1100,7 +1100,7 @@ begin
     // data=0xFF, mask=0x0F, expected=0x0F
     // (0xFF & 0x0F) = 0x0F, (0x0F & 0x0F) = 0x0F → MATCH
     // But OR accumulation: 0xFF & 0x0F = 0x0F ≠ 0 → external fault for non-zero
-    ext_mem[0][0] = 64'h0000_0000_0000_00FF;
+    ext_mem[(0) * MEM_WORDS + (0)] = 64'h0000_0000_0000_00FF;
     config_entry(0, 0, 32'h0, 64'h0000_0000_0000_000F, 2'b01, 8'd0, 1'b1,
                  64'h0000_0000_0000_000F);
     lock_enable_scan();
@@ -1112,17 +1112,10 @@ begin
 end
 endtask
 
-reg [1023:0] fsdb_file;
-
 initial begin
-    if (!$value$plusargs("FSDB=%s", fsdb_file)) begin
-        fsdb_file = "full.fsdb";
-    end
-
-    $display("[%0t] FSDB dump start: %0s", $time, fsdb_file);
-    $fsdbDumpfile(fsdb_file);
-    $fsdbDumpvars(0, tb_safety_island_top_full);
-    $fsdbDumpMDA();
+    $dumpfile("sim_output/safety_island_top_full.vcd");
+    $dumpvars(0, tb_safety_island_top_full);
+    $display("[%0t] VCD dump start", $time);
 end
 
 initial begin
