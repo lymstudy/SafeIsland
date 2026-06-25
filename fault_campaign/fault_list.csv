@@ -1,0 +1,16 @@
+fault_id,module,hierarchical_path,type,inject_cycle,duration,target_ch,expected_class
+F0001,s_axi_config,u_top.u_cfg.ctrl_enable,stuck_at_0,1,50,0,detected
+F0002,monitor_scheduler,u_top.u_sched.state[0],stuck_at_0,5,100,0,detected
+F0003,fault_detector,u_top.u_fd.fault_detect,stuck_at_1,5,10,0,detected
+F0004,monitor_scheduler,u_top.u_sched.state[0],transient_flip,5,1,0,detected
+F0005,axi_master_ch0,AXI_timeout,timeout,3,60,0,detected
+F0006,axi_master_ch2,AXI_error_resp,error_response,3,10,2,detected
+F0007,axi_master_ch4,AXI_timeout,timeout,3,60,4,detected
+F0008,fault_status_manager,u_top.u_fs.sticky_status[0],stuck_at_0,3,100,0,detected
+F0009,fault_status_manager,u_top.u_fs.counter_ext[0],stuck_at_1,5,100,0,detected
+F0010,s_axi_config,u_top.u_cfg.ctrl_write_protect,stuck_at_1,3,50,0,detected
+F0011,s_axi_config,u_top.u_cfg.read_interval[0],stuck_at_0,3,50,0,detected
+F0012,axi_master_ch1,u_top.u_m1.state[0],stuck_at_0,3,100,1,detected
+F0013,axi_master_ch3,AXI_timeout,timeout,5,60,3,detected
+F0014,read_data_processor,u_top.u_dp,transient_flip,10,1,0,detected
+F0015,fault_detector,u_top.u_fd.fault_type[0],stuck_at_0,5,50,0,detected

@@ -1,0 +1,287 @@
+`timescale 1ns/1ps
+
+module safety_island_axi_read_engine #(
+    parameter ADDR_WIDTH      = 32,
+    parameter DATA_WIDTH      = 64,
+    parameter ID_WIDTH        = 4,
+    parameter TIMEOUT_CYCLES  = 1024,
+    parameter MAX_OUTSTANDING = 4
+) (
+    input  wire                   clk,
+    input  wire                   rst,
+
+    input  wire                   cmd_valid,
+    output wire                   cmd_ready,
+    input  wire [ID_WIDTH-1:0]    cmd_id,
+    input  wire [ADDR_WIDTH-1:0]  cmd_addr,
+    input  wire [7:0]             cmd_len,
+    input  wire [2:0]             cmd_size,
+    input  wire [1:0]             cmd_burst,
+
+    output reg                    done,
+    output reg                    error,
+    output reg                    timeout,
+    output reg  [DATA_WIDTH-1:0]  read_data,
+
+    output reg  [ID_WIDTH-1:0]    m_axi_arid,
+    output reg  [ADDR_WIDTH-1:0]  m_axi_araddr,
+    output reg  [7:0]             m_axi_arlen,
+    output reg  [2:0]             m_axi_arsize,
+    output reg  [1:0]             m_axi_arburst,
+    output wire                   m_axi_arlock,
+    output wire [3:0]             m_axi_arcache,
+    output wire [2:0]             m_axi_arprot,
+    output wire [3:0]             m_axi_arqos,
+    output reg                    m_axi_arvalid,
+    input  wire                   m_axi_arready,
+
+    input  wire [ID_WIDTH-1:0]    m_axi_rid,
+    input  wire [DATA_WIDTH-1:0]  m_axi_rdata,
+    input  wire [1:0]             m_axi_rresp,
+    input  wire                   m_axi_rlast,
+    input  wire                   m_axi_rvalid,
+    input  wire [7:0]             m_axi_rcheck,
+    output wire                   m_axi_rready
+);
+
+localparam [1:0] RESP_OKAY = 2'b00;
+localparam [31:0] ID_CAPACITY = (32'd1 << ID_WIDTH);
+
+assign m_axi_arlock  = 1'b0;
+assign m_axi_arcache = 4'b0011;
+assign m_axi_arprot  = 3'b000;
+assign m_axi_arqos   = 4'b0000;
+
+reg [ID_WIDTH-1:0]    slot_id_q       [0:MAX_OUTSTANDING-1];
+reg [7:0]             slot_len_q      [0:MAX_OUTSTANDING-1];
+reg [7:0]             slot_beat_q     [0:MAX_OUTSTANDING-1];
+reg [31:0]            slot_age_q      [0:MAX_OUTSTANDING-1];
+reg [DATA_WIDTH-1:0]  slot_accum_q    [0:MAX_OUTSTANDING-1];
+reg                   slot_error_q    [0:MAX_OUTSTANDING-1];
+reg                   slot_timeout_q  [0:MAX_OUTSTANDING-1];
+reg                   slot_valid_q    [0:MAX_OUTSTANDING-1];
+reg                   slot_done_q     [0:MAX_OUTSTANDING-1];
+
+reg [31:0] wr_ptr;
+reg [31:0] rd_ptr;
+reg [31:0] outstanding_count;
+reg [31:0] ar_timeout_count;
+
+wire ar_fire;
+wire r_fire;
+wire request_fire;
+wire id_capacity_ok;
+
+reg rid_match_found;
+reg [31:0] rid_match_idx;
+reg [DATA_WIDTH-1:0] r_accum_next;
+reg r_error_next;
+reg r_last_expected;
+reg [7:0] r_crc_expected;
+reg [31:0] scan_i;
+
+assign ar_fire = m_axi_arvalid && m_axi_arready;
+assign r_fire = m_axi_rvalid && m_axi_rready;
+assign request_fire = cmd_valid && cmd_ready;
+assign id_capacity_ok = (MAX_OUTSTANDING <= ID_CAPACITY);
+assign cmd_ready = id_capacity_ok &&
+                   (outstanding_count < MAX_OUTSTANDING) &&
+                   !m_axi_arvalid;
+assign m_axi_rready = (outstanding_count != 32'd0);
+
+function [31:0] inc_ptr;
+    input [31:0] ptr;
+begin
+    if (ptr >= (MAX_OUTSTANDING - 1))
+        inc_ptr = 32'd0;
+    else
+        inc_ptr = ptr + 32'd1;
+end
+endfunction
+
+function [ID_WIDTH-1:0] slot_id;
+    input [31:0] ptr;
+begin
+    slot_id = ptr[ID_WIDTH-1:0] ^ cmd_id;
+end
+endfunction
+
+function [7:0] crc8_rbeat;
+    input [ID_WIDTH-1:0] rid;
+    input [DATA_WIDTH-1:0] rdata;
+    input [1:0] rresp;
+    input rlast;
+    reg [ID_WIDTH+DATA_WIDTH+2:0] payload;
+    reg [7:0] crc;
+    reg feedback;
+    integer bit_i;
+begin
+    payload = {rid, rdata, rresp, rlast};
+    crc = 8'h00;
+    for (bit_i = ID_WIDTH + DATA_WIDTH + 2; bit_i >= 0; bit_i = bit_i - 1) begin
+        feedback = crc[7] ^ payload[bit_i];
+        crc = {crc[6:0], 1'b0};
+        if (feedback)
+            crc = crc ^ 8'h07;
+    end
+    crc8_rbeat = crc;
+end
+endfunction
+
+integer i;
+
+always @* begin
+    rid_match_found = 1'b0;
+    rid_match_idx = 32'd0;
+    for (scan_i = 0; scan_i < MAX_OUTSTANDING; scan_i = scan_i + 1) begin
+        if (!rid_match_found &&
+            slot_valid_q[scan_i] &&
+            !slot_done_q[scan_i] &&
+            (slot_id_q[scan_i] == m_axi_rid)) begin
+            rid_match_found = 1'b1;
+            rid_match_idx = scan_i;
+        end
+    end
+
+    r_accum_next = {DATA_WIDTH{1'b0}};
+    r_error_next = 1'b1;
+    r_last_expected = 1'b0;
+    r_crc_expected = crc8_rbeat(m_axi_rid, m_axi_rdata, m_axi_rresp, m_axi_rlast);
+    if (rid_match_found) begin
+        r_accum_next = slot_accum_q[rid_match_idx] | m_axi_rdata;
+        r_last_expected = (slot_beat_q[rid_match_idx] == slot_len_q[rid_match_idx]);
+        r_error_next = slot_error_q[rid_match_idx] |
+                       (m_axi_rresp != RESP_OKAY) |
+                       (m_axi_rlast != r_last_expected) |
+                       (m_axi_rcheck != r_crc_expected);
+    end
+end
+
+always @(posedge clk) begin
+    if (rst) begin
+        done              <= 1'b0;
+        error             <= 1'b0;
+        timeout           <= 1'b0;
+        read_data         <= {DATA_WIDTH{1'b0}};
+        m_axi_arid        <= {ID_WIDTH{1'b0}};
+        m_axi_araddr      <= {ADDR_WIDTH{1'b0}};
+        m_axi_arlen       <= 8'd0;
+        m_axi_arsize      <= 3'd0;
+        m_axi_arburst     <= 2'b01;
+        m_axi_arvalid     <= 1'b0;
+        wr_ptr            <= 32'd0;
+        rd_ptr            <= 32'd0;
+        outstanding_count <= 32'd0;
+        ar_timeout_count  <= 32'd0;
+
+        for (i = 0; i < MAX_OUTSTANDING; i = i + 1) begin
+            slot_id_q[i]      <= {ID_WIDTH{1'b0}};
+            slot_len_q[i]     <= 8'd0;
+            slot_beat_q[i]    <= 8'd0;
+            slot_age_q[i]     <= 32'd0;
+            slot_accum_q[i]   <= {DATA_WIDTH{1'b0}};
+            slot_error_q[i]   <= 1'b0;
+            slot_timeout_q[i] <= 1'b0;
+            slot_valid_q[i]   <= 1'b0;
+            slot_done_q[i]    <= 1'b0;
+        end
+    end else begin
+        done    <= 1'b0;
+        error   <= 1'b0;
+        timeout <= 1'b0;
+
+        if (request_fire) begin
+            m_axi_arid    <= slot_id(wr_ptr);
+            m_axi_araddr  <= cmd_addr;
+            m_axi_arlen   <= cmd_len;
+            m_axi_arsize  <= cmd_size;
+            m_axi_arburst <= cmd_burst;
+            m_axi_arvalid <= 1'b1;
+            ar_timeout_count <= 32'd0;
+        end else if (ar_fire) begin
+            m_axi_arvalid <= 1'b0;
+            ar_timeout_count <= 32'd0;
+        end else if (m_axi_arvalid && !m_axi_arready) begin
+            if (ar_timeout_count >= (TIMEOUT_CYCLES - 1)) begin
+                done             <= 1'b1;
+                error            <= 1'b1;
+                timeout          <= 1'b1;
+                read_data        <= {DATA_WIDTH{1'b0}};
+                m_axi_arvalid    <= 1'b0;
+                ar_timeout_count <= 32'd0;
+            end else begin
+                ar_timeout_count <= ar_timeout_count + 32'd1;
+            end
+        end
+
+        if (ar_fire) begin
+            slot_id_q[wr_ptr]      <= m_axi_arid;
+            slot_len_q[wr_ptr]     <= m_axi_arlen;
+            slot_beat_q[wr_ptr]    <= 8'd0;
+            slot_age_q[wr_ptr]     <= 32'd0;
+            slot_accum_q[wr_ptr]   <= {DATA_WIDTH{1'b0}};
+            slot_error_q[wr_ptr]   <= 1'b0;
+            slot_timeout_q[wr_ptr] <= 1'b0;
+            slot_valid_q[wr_ptr]   <= 1'b1;
+            slot_done_q[wr_ptr]    <= 1'b0;
+            wr_ptr                 <= inc_ptr(wr_ptr);
+            outstanding_count      <= outstanding_count + 32'd1;
+        end
+
+        for (i = 0; i < MAX_OUTSTANDING; i = i + 1) begin
+            if (slot_valid_q[i] && !slot_done_q[i]) begin
+                if (slot_age_q[i] < TIMEOUT_CYCLES)
+                    slot_age_q[i] <= slot_age_q[i] + 32'd1;
+            end
+        end
+
+        if (r_fire) begin
+            if (rid_match_found) begin
+                slot_accum_q[rid_match_idx] <= r_accum_next;
+                slot_error_q[rid_match_idx] <= r_error_next;
+                slot_age_q[rid_match_idx]   <= 32'd0;
+
+                if (m_axi_rlast || r_last_expected) begin
+                    slot_done_q[rid_match_idx] <= 1'b1;
+                end else begin
+                    slot_beat_q[rid_match_idx] <= slot_beat_q[rid_match_idx] + 8'd1;
+                end
+            end else if (slot_valid_q[rd_ptr] && !slot_done_q[rd_ptr]) begin
+                slot_accum_q[rd_ptr] <= {DATA_WIDTH{1'b0}};
+                slot_error_q[rd_ptr] <= 1'b1;
+                slot_done_q[rd_ptr]  <= 1'b1;
+                slot_age_q[rd_ptr]   <= 32'd0;
+            end
+        end
+
+        if (slot_valid_q[rd_ptr] &&
+            !slot_done_q[rd_ptr] &&
+            (slot_age_q[rd_ptr] >= (TIMEOUT_CYCLES - 1))) begin
+            slot_accum_q[rd_ptr]   <= {DATA_WIDTH{1'b0}};
+            slot_error_q[rd_ptr]   <= 1'b1;
+            slot_timeout_q[rd_ptr] <= 1'b1;
+            slot_done_q[rd_ptr]    <= 1'b1;
+        end
+
+        if (slot_valid_q[rd_ptr] && slot_done_q[rd_ptr]) begin
+            done      <= 1'b1;
+            error     <= slot_error_q[rd_ptr] | slot_timeout_q[rd_ptr];
+            timeout   <= slot_timeout_q[rd_ptr];
+            read_data <= slot_accum_q[rd_ptr];
+
+            slot_valid_q[rd_ptr]   <= 1'b0;
+            slot_done_q[rd_ptr]    <= 1'b0;
+            slot_error_q[rd_ptr]   <= 1'b0;
+            slot_timeout_q[rd_ptr] <= 1'b0;
+            slot_accum_q[rd_ptr]   <= {DATA_WIDTH{1'b0}};
+            slot_age_q[rd_ptr]     <= 32'd0;
+            slot_beat_q[rd_ptr]    <= 8'd0;
+
+            rd_ptr <= inc_ptr(rd_ptr);
+            if (outstanding_count != 32'd0)
+                outstanding_count <= outstanding_count - 32'd1;
+        end
+    end
+end
+
+endmodule
