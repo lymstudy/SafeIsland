@@ -1211,6 +1211,78 @@ begin
 end
 endtask
 
+task heartbeat_pass_flow;
+    reg [DATA_W-1:0] status;
+begin
+    case_fail = 0;
+    reset_dut();
+    setup_default_base();
+    ext_mem[(0) * MEM_WORDS + (0)] = 64'h0;
+    config_entry(0, 0, 32'h0, 64'hFFFF_FFFF_FFFF_FFFF, 2'b01, 8'd0, 1'b1, 64'd0);
+    lock_enable_scan();
+    // Wait for heartbeat to fire (1024 cycles default interval)
+    wait_cycles(1100);
+    // Read status — heartbeat should have completed without permanent fault
+    axi_cfg_read(ADDR_STATUS, status);
+    // Check: heartbeat_fault should NOT be asserted
+    if (dut.u_heartbeat.heartbeat_fault) begin
+        $display("FAIL: heartbeat_fault asserted unexpectedly");
+        case_fail = case_fail + 1;
+        total_fail = total_fail + 1;
+    end
+    // The scan should complete even after heartbeat tests
+    wait_scan_done(5000);
+    pass_case("heartbeat_pass_flow");
+end
+endtask
+
+task heartbeat_fail_flow;
+begin
+    case_fail = 0;
+    reset_dut();
+    setup_default_base();
+    ext_mem[(0) * MEM_WORDS + (0)] = 64'h0;
+    config_entry(0, 0, 32'h0, 64'hFFFF_FFFF_FFFF_FFFF, 2'b01, 8'd0, 1'b1, 64'd0);
+    lock_enable_scan();
+    // Force safety_island_fault_detect to be stuck at 0
+    force safety_island_fault_detect = 1'b0;
+    wait_cycles(1100);
+    // Heartbeat should have detected the stuck fault
+    if (!dut.u_heartbeat.heartbeat_fault) begin
+        $display("FAIL: heartbeat did not detect stuck fault_detect");
+        case_fail = case_fail + 1;
+        total_fail = total_fail + 1;
+    end
+    release safety_island_fault_detect;
+    pass_case("heartbeat_fail_flow");
+end
+endtask
+
+task heartbeat_no_interfere_flow;
+    reg [DATA_W-1:0] status;
+begin
+    case_fail = 0;
+    reset_dut();
+    setup_default_base();
+    // Configure multi-entry scan so scan_busy stays high
+    ext_mem[(0) * MEM_WORDS + (0)] = 64'h0;
+    ext_mem[(0) * MEM_WORDS + (1)] = 64'h0;
+    ext_mem[(0) * MEM_WORDS + (2)] = 64'h0;
+    config_entry(0, 0, 32'h0,  64'hFFFF_FFFF_FFFF_FFFF, 2'b01, 8'd0, 1'b1, 64'd0);
+    config_entry(0, 1, 32'h8,  64'hFFFF_FFFF_FFFF_FFFF, 2'b01, 8'd0, 1'b1, 64'd0);
+    config_entry(0, 2, 32'h10, 64'hFFFF_FFFF_FFFF_FFFF, 2'b01, 8'd0, 1'b1, 64'd0);
+    lock_enable_scan();
+    // Wait for scan to complete (should not be interrupted by heartbeat)
+    wait_scan_done(3000);
+    if (dut.u_heartbeat.heartbeat_fault) begin
+        $display("FAIL: heartbeat interfered with scan");
+        case_fail = case_fail + 1;
+        total_fail = total_fail + 1;
+    end
+    pass_case("heartbeat_no_interfere_flow");
+end
+endtask
+
 initial begin
     $dumpfile("sim_output/safety_island_top_full.vcd");
     $dumpvars(0, tb_safety_island_top_full);
@@ -1249,6 +1321,10 @@ initial begin
     expected_mismatch_flow();
     expected_match_flow();
     expected_masked_match_flow();
+
+    heartbeat_pass_flow();
+    heartbeat_fail_flow();
+    heartbeat_no_interfere_flow();
 
     if (total_fail == 0) begin
         $display("PASS: safety_island_top full test completed, cases=%0d", total_pass);

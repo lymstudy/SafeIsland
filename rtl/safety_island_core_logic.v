@@ -74,6 +74,8 @@ module safety_island_core_logic
     input  wire                                      cfg_locked,
     input  wire                                      cfg_illegal,
     input  wire                                      cfg_shadow_error,
+    input  wire                                      test_inject,
+    input  wire                                      heartbeat_active,
 
     // ─── Read request interface to read engines ───
     output reg  [NUM_MASTERS-1:0]                    m_read_req,
@@ -673,7 +675,7 @@ module safety_island_core_logic
     assign interval_expired_comb =
         (read_interval != 64'd0) && (interval_counter >= (read_interval - 64'd1));
     assign scan_start_comb =
-        cfg_operational &&
+        cfg_operational && !heartbeat_active &&
         (scan_once_req_comb || (enable && interval_expired_comb));
 
     always @* begin
@@ -967,6 +969,11 @@ module safety_island_core_logic
                             (get_read_data(response_master_idx) &
                              pending_mask_q[pending_rd_ptr]));
                     end
+                end
+
+                // Heartbeat test injection: force accum_inv to mismatch
+                if (test_inject && !pop_response_comb) begin
+                    fault_or_accum_inv <= ~fault_or_accum_inv;
                 end
 
                 // ── 压入新请求 ──
