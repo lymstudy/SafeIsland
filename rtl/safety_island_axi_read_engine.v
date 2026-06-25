@@ -5,7 +5,8 @@ module safety_island_axi_read_engine #(
     parameter DATA_WIDTH      = 64,
     parameter ID_WIDTH        = 4,
     parameter TIMEOUT_CYCLES  = 1024,
-    parameter MAX_OUTSTANDING = 4
+    parameter MAX_OUTSTANDING = 4,
+    parameter CRC_WIDTH = 16
 ) (
     input  wire                   clk,
     input  wire                   rst,
@@ -40,7 +41,7 @@ module safety_island_axi_read_engine #(
     input  wire [1:0]             m_axi_rresp,
     input  wire                   m_axi_rlast,
     input  wire                   m_axi_rvalid,
-    input  wire [7:0]             m_axi_rcheck,
+    input  wire [CRC_WIDTH-1:0]   m_axi_rcheck,
     output wire                   m_axi_rready
 );
 
@@ -61,6 +62,7 @@ reg                   slot_error_q    [0:MAX_OUTSTANDING-1];
 reg                   slot_timeout_q  [0:MAX_OUTSTANDING-1];
 reg                   slot_valid_q    [0:MAX_OUTSTANDING-1];
 reg                   slot_done_q     [0:MAX_OUTSTANDING-1];
+reg [CRC_WIDTH-1:0]  slot_ar_sig_q   [0:MAX_OUTSTANDING-1];
 
 reg [31:0] wr_ptr;
 reg [31:0] rd_ptr;
@@ -77,7 +79,13 @@ reg [31:0] rid_match_idx;
 reg [DATA_WIDTH-1:0] r_accum_next;
 reg r_error_next;
 reg r_last_expected;
-reg [7:0] r_crc_expected;
+
+wire [CRC_WIDTH-1:0] ar_signature;
+wire [ID_WIDTH+ADDR_WIDTH+8+3+2-1:0] ar_payload;
+assign ar_payload = {m_axi_arid, m_axi_araddr, m_axi_arlen, m_axi_arsize, m_axi_arburst};
+assign ar_signature = crc_n(ar_payload, ID_WIDTH + ADDR_WIDTH + 8 + 3 + 2);
+
+reg [CRC_WIDTH-1:0] r_crc_expected;
 reg [31:0] scan_i;
 
 assign ar_fire = m_axi_arvalid && m_axi_arready;
@@ -106,25 +114,33 @@ begin
 end
 endfunction
 
-function [7:0] crc8_rbeat;
-    input [ID_WIDTH-1:0] rid;
-    input [DATA_WIDTH-1:0] rdata;
-    input [1:0] rresp;
-    input rlast;
-    reg [ID_WIDTH+DATA_WIDTH+2:0] payload;
-    reg [7:0] crc;
+// Parameterized CRC: CRC_WIDTH=8 uses poly 0x07 init 0x00, CRC_WIDTH=16 uses poly 0x1021 init 0xFFFF
+function [CRC_WIDTH-1:0] crc_n;
+    input [ID_WIDTH+ADDR_WIDTH+8+3+2+DATA_WIDTH+2+1-1:0] payload;
+    input integer payload_bits;
+    reg [CRC_WIDTH-1:0] crc;
     reg feedback;
     integer bit_i;
 begin
-    payload = {rid, rdata, rresp, rlast};
-    crc = 8'h00;
-    for (bit_i = ID_WIDTH + DATA_WIDTH + 2; bit_i >= 0; bit_i = bit_i - 1) begin
-        feedback = crc[7] ^ payload[bit_i];
-        crc = {crc[6:0], 1'b0};
-        if (feedback)
-            crc = crc ^ 8'h07;
+    if (CRC_WIDTH == 8) begin
+        crc = 8'h00;
+        for (bit_i = payload_bits - 1; bit_i >= 0; bit_i = bit_i - 1) begin
+            feedback = crc[7] ^ payload[bit_i];
+            crc = {crc[6:0], 1'b0};
+            if (feedback)
+                crc = crc ^ 8'h07;
+        end
+        crc_n = crc;
+    end else begin
+        crc = 16'hFFFF;
+        for (bit_i = payload_bits - 1; bit_i >= 0; bit_i = bit_i - 1) begin
+            feedback = crc[15] ^ payload[bit_i];
+            crc = {crc[14:0], 1'b0};
+            if (feedback)
+                crc = crc ^ 16'h1021;
+        end
+        crc_n = crc;
     end
-    crc8_rbeat = crc;
 end
 endfunction
 
@@ -146,7 +162,14 @@ always @* begin
     r_accum_next = {DATA_WIDTH{1'b0}};
     r_error_next = 1'b1;
     r_last_expected = 1'b0;
-    r_crc_expected = crc8_rbeat(m_axi_rid, m_axi_rdata, m_axi_rresp, m_axi_rlast);
+    if (rid_match_found) begin
+        r_crc_expected = crc_n(
+            {slot_ar_sig_q[rid_match_idx], m_axi_rid, m_axi_rdata, m_axi_rresp, m_axi_rlast},
+            CRC_WIDTH + ID_WIDTH + DATA_WIDTH + 2 + 1
+        );
+    end else begin
+        r_crc_expected = {CRC_WIDTH{1'b0}};
+    end
     if (rid_match_found) begin
         r_accum_next = slot_accum_q[rid_match_idx] | m_axi_rdata;
         r_last_expected = (slot_beat_q[rid_match_idx] == slot_len_q[rid_match_idx]);
@@ -184,6 +207,7 @@ always @(posedge clk) begin
             slot_timeout_q[i] <= 1'b0;
             slot_valid_q[i]   <= 1'b0;
             slot_done_q[i]    <= 1'b0;
+            slot_ar_sig_q[i]   <= {CRC_WIDTH{1'b0}};
         end
     end else begin
         done    <= 1'b0;
@@ -224,6 +248,7 @@ always @(posedge clk) begin
             slot_timeout_q[wr_ptr] <= 1'b0;
             slot_valid_q[wr_ptr]   <= 1'b1;
             slot_done_q[wr_ptr]    <= 1'b0;
+            slot_ar_sig_q[wr_ptr]  <= ar_signature;
             wr_ptr                 <= inc_ptr(wr_ptr);
             outstanding_count      <= outstanding_count + 32'd1;
         end
@@ -271,6 +296,7 @@ always @(posedge clk) begin
 
             slot_valid_q[rd_ptr]   <= 1'b0;
             slot_done_q[rd_ptr]    <= 1'b0;
+            slot_ar_sig_q[rd_ptr]   <= {CRC_WIDTH{1'b0}};
             slot_error_q[rd_ptr]   <= 1'b0;
             slot_timeout_q[rd_ptr] <= 1'b0;
             slot_accum_q[rd_ptr]   <= {DATA_WIDTH{1'b0}};

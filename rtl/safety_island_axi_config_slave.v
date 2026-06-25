@@ -67,6 +67,10 @@ module safety_island_axi_config_slave #(
     output wire                                      cfg_locked,
     output wire                                      cfg_illegal,
     output wire                                      cfg_shadow_error,
+    output reg                                       kat_enable_out,
+    output reg  [ADDR_W-1:0]                         kat_addr_out,
+    output reg  [DATA_W-1:0]                         kat_expected_out,
+    output reg  [DATA_W-1:0]                         kat_mask_out,
 
     input  wire                                      scan_busy,
     input  wire                                      scan_done_pulse,
@@ -101,6 +105,10 @@ localparam [ADDR_W-1:0] ENTRY_OFFSET_OFF   = 32'h0000_0000;
 localparam [ADDR_W-1:0] ENTRY_MASK_OFF     = 32'h0000_0008;
 localparam [ADDR_W-1:0] ENTRY_BURST_OFF    = 32'h0000_0010;
 localparam [ADDR_W-1:0] ENTRY_EXPECTED_OFF = 32'h0000_0018;
+localparam [ADDR_W-1:0] ADDR_KAT_CTRL     = 32'h0000_0038;
+localparam [ADDR_W-1:0] ADDR_KAT_ADDR     = 32'h0000_0040;
+localparam [ADDR_W-1:0] ADDR_KAT_EXPECTED = 32'h0000_0048;
+localparam [ADDR_W-1:0] ADDR_KAT_MASK     = 32'h0000_0050;
 
 reg [ADDR_W-1:0] awaddr_q;
 reg [ID_W-1:0]   awid_q;
@@ -113,14 +121,39 @@ reg [(DATA_W/8)-1:0] wstrb_q;
 reg              wlast_q;
 reg              w_seen_q;
 
-reg cfg_locked_r;
-reg cfg_illegal_r;
+reg cfg_locked_r_a, cfg_locked_r_b, cfg_locked_r_c;
+wire cfg_locked_r;
+
+assign cfg_locked_r = (cfg_locked_r_a & cfg_locked_r_b) |
+                      (cfg_locked_r_b & cfg_locked_r_c) |
+                      (cfg_locked_r_a & cfg_locked_r_c);
+
+reg cfg_illegal_r_a, cfg_illegal_r_b, cfg_illegal_r_c;
+wire cfg_illegal_r;
+
+assign cfg_illegal_r = (cfg_illegal_r_a & cfg_illegal_r_b) |
+                       (cfg_illegal_r_b & cfg_illegal_r_c) |
+                       (cfg_illegal_r_a & cfg_illegal_r_c);
+
 reg scan_done_sticky;
+reg write_verify_pending;
 
 reg enable_inv;
 reg cfg_locked_inv;
 reg cfg_illegal_inv;
 reg [63:0] read_interval_inv;
+
+// TMR shadow copies for enable
+reg enable_shadow_b, enable_shadow_c;
+wire enable_tmr_mismatch;
+assign enable_tmr_mismatch = (enable ^ enable_shadow_b) & (enable_shadow_b ^ enable_shadow_c);
+
+// TMR mismatch detection for cfg_locked_r and cfg_illegal_r
+wire cfg_locked_tmr_mismatch;
+wire cfg_illegal_tmr_mismatch;
+
+assign cfg_locked_tmr_mismatch  = (cfg_locked_r_a  ^ cfg_locked_r_b)  & (cfg_locked_r_b  ^ cfg_locked_r_c);
+assign cfg_illegal_tmr_mismatch = (cfg_illegal_r_a ^ cfg_illegal_r_b) & (cfg_illegal_r_b ^ cfg_illegal_r_c);
 
 reg [ADDR_W-1:0] base_addr_q     [0:NUM_MASTERS-1];
 reg [ADDR_W-1:0] base_addr_inv_q [0:NUM_MASTERS-1];
@@ -137,6 +170,15 @@ reg              entry_valid_q   [0:NUM_MASTERS*NUM_ENTRIES-1];
 reg              entry_valid_inv_q[0:NUM_MASTERS*NUM_ENTRIES-1];
 reg [DATA_W-1:0] expected_q      [0:NUM_MASTERS*NUM_ENTRIES-1];
 reg [DATA_W-1:0] expected_inv_q  [0:NUM_MASTERS*NUM_ENTRIES-1];
+
+reg              kat_enable;
+reg              kat_enable_inv;
+reg [ADDR_W-1:0] kat_addr;
+reg [ADDR_W-1:0] kat_addr_inv;
+reg [DATA_W-1:0] kat_expected;
+reg [DATA_W-1:0] kat_expected_inv;
+reg [DATA_W-1:0] kat_mask;
+reg [DATA_W-1:0] kat_mask_inv;
 
 integer flat_m;
 integer flat_idx;
@@ -233,6 +275,11 @@ always @* begin
         burst_len_flat[flat_idx*8 +: 8] = burst_len_q[flat_idx];
         entry_valid_flat[flat_idx] = entry_valid_q[flat_idx];
         expected_flat[flat_idx*DATA_W +: DATA_W] = expected_q[flat_idx];
+
+        kat_enable_out   = kat_enable;
+        kat_addr_out     = kat_addr;
+        kat_expected_out = kat_expected;
+        kat_mask_out     = kat_mask;
     end
 end
 
@@ -241,6 +288,9 @@ always @* begin
                         (cfg_locked_inv != ~cfg_locked_r) |
                         (cfg_illegal_inv != ~cfg_illegal_r) |
                         (read_interval_inv != ~read_interval);
+
+    if (cfg_locked_tmr_mismatch || cfg_illegal_tmr_mismatch || enable_tmr_mismatch)
+        shadow_error_comb = 1'b1;
 
     for (shadow_m = 0; shadow_m < NUM_MASTERS; shadow_m = shadow_m + 1) begin
         if (base_addr_inv_q[shadow_m] != ~base_addr_q[shadow_m])
@@ -256,6 +306,12 @@ always @* begin
             (expected_inv_q[shadow_idx] != ~expected_q[shadow_idx]))
             shadow_error_comb = 1'b1;
     end
+
+    if ((kat_enable_inv != ~kat_enable) ||
+        (kat_addr_inv != ~kat_addr) ||
+        (kat_expected_inv != ~kat_expected) ||
+        (kat_mask_inv != ~kat_mask))
+        shadow_error_comb = 1'b1;
 end
 
 always @* begin
@@ -285,6 +341,8 @@ always @* begin
         read_data_comb = {current_master_idx, current_entry_idx};
     end else if (s_axi_araddr[ADDR_W-1:0] == ADDR_OUTSTANDING) begin
         read_data_comb = {{(DATA_W-32){1'b0}}, outstanding_count};
+    end else if (s_axi_araddr[ADDR_W-1:0] == ADDR_KAT_CTRL) begin
+        read_data_comb = {{(DATA_W-1){1'b0}}, kat_enable};
     end else if ((s_axi_araddr[ADDR_W-1:0] >= ADDR_BASE_REGION) &&
                  (s_axi_araddr[ADDR_W-1:0] < (ADDR_BASE_REGION + NUM_MASTERS*BASE_STRIDE))) begin
         read_m = (s_axi_araddr[ADDR_W-1:0] - ADDR_BASE_REGION) / BASE_STRIDE;
@@ -309,6 +367,12 @@ always @* begin
         end else begin
             read_resp_comb = RESP_SLVERR;
         end
+    end else if (s_axi_araddr[ADDR_W-1:0] == ADDR_KAT_ADDR) begin
+        read_data_comb = {{(DATA_W-ADDR_W){1'b0}}, kat_addr};
+    end else if (s_axi_araddr[ADDR_W-1:0] == ADDR_KAT_EXPECTED) begin
+        read_data_comb = kat_expected;
+    end else if (s_axi_araddr[ADDR_W-1:0] == ADDR_KAT_MASK) begin
+        read_data_comb = kat_mask;
     end else begin
         read_resp_comb = RESP_SLVERR;
     end
@@ -338,16 +402,23 @@ always @(posedge clk) begin
         wlast_q           <= 1'b0;
         w_seen_q          <= 1'b0;
         enable            <= 1'b0;
+        enable_shadow_b   <= 1'b0;
+        enable_shadow_c   <= 1'b0;
         enable_inv        <= 1'b1;
         scan_once         <= 1'b0;
         clear_core_status <= 1'b0;
         read_interval     <= 64'd0;
         read_interval_inv <= {64{1'b1}};
-        cfg_locked_r      <= 1'b0;
+        cfg_locked_r_a    <= 1'b0;
+        cfg_locked_r_b    <= 1'b0;
+        cfg_locked_r_c    <= 1'b0;
         cfg_locked_inv    <= 1'b1;
-        cfg_illegal_r     <= 1'b0;
+        cfg_illegal_r_a   <= 1'b0;
+        cfg_illegal_r_b   <= 1'b0;
+        cfg_illegal_r_c   <= 1'b0;
         cfg_illegal_inv   <= 1'b1;
         scan_done_sticky  <= 1'b0;
+        write_verify_pending <= 1'b0;
 
         for (seq_m = 0; seq_m < NUM_MASTERS; seq_m = seq_m + 1) begin
             base_addr_q[seq_m]     <= {ADDR_W{1'b0}};
@@ -367,6 +438,15 @@ always @(posedge clk) begin
             entry_valid_inv_q[seq_idx]<= 1'b1;
             expected_q[seq_idx]      <= {DATA_W{1'b0}};
             expected_inv_q[seq_idx]  <= {DATA_W{1'b1}};
+
+        kat_enable      <= 1'b0;
+        kat_enable_inv  <= 1'b1;
+        kat_addr        <= {ADDR_W{1'b0}};
+        kat_addr_inv    <= {ADDR_W{1'b1}};
+        kat_expected    <= {DATA_W{1'b0}};
+        kat_expected_inv<= {DATA_W{1'b1}};
+        kat_mask        <= {DATA_W{1'b0}};
+        kat_mask_inv    <= {DATA_W{1'b1}};
         end
     end else begin
         scan_once         <= 1'b0;
@@ -396,35 +476,61 @@ always @(posedge clk) begin
 
             if (write_len_comb != 8'd0 || write_size_comb != 3'd3 ||
                 write_burst_comb != 2'b01 || !write_last_comb) begin
-                write_resp_comb = RESP_SLVERR;
-                cfg_illegal_r   <= 1'b1;
-                cfg_illegal_inv <= 1'b0;
+                write_resp_comb  = RESP_SLVERR;
+                cfg_illegal_r_a  <= 1'b1;
+                cfg_illegal_r_b  <= 1'b1;
+                cfg_illegal_r_c  <= 1'b1;
+                cfg_illegal_inv  <= 1'b0;
             end else if (write_addr_comb == ADDR_CONTROL) begin
                 merged_write = apply_wstrb(control_read_value(1'b0), write_data_comb, write_strb_comb);
                 if (merged_write[0] != enable) begin
-                    enable     <= merged_write[0];
-                    enable_inv <= ~merged_write[0];
+                    enable          <= merged_write[0];
+                    enable_shadow_b <= merged_write[0];
+                    enable_shadow_c <= merged_write[0];
+                    enable_inv      <= ~merged_write[0];
                 end
                 if (merged_write[1])
                     scan_once <= 1'b1;
                 if (merged_write[2]) begin
                     clear_core_status <= 1'b1;
-                    cfg_illegal_r     <= 1'b0;
+                    cfg_illegal_r_a   <= 1'b0;
+                    cfg_illegal_r_b   <= 1'b0;
+                    cfg_illegal_r_c   <= 1'b0;
                     cfg_illegal_inv   <= 1'b1;
                     scan_done_sticky  <= 1'b0;
                 end
                 if (merged_write[3]) begin
-                    cfg_locked_r   <= 1'b1;
+                    cfg_locked_r_a <= 1'b1;
+                    cfg_locked_r_b <= 1'b1;
+                    cfg_locked_r_c <= 1'b1;
                     cfg_locked_inv <= 1'b0;
                 end
             end else if (cfg_locked_r) begin
-                write_resp_comb = RESP_SLVERR;
-                cfg_illegal_r   <= 1'b1;
-                cfg_illegal_inv <= 1'b0;
+                write_resp_comb  = RESP_SLVERR;
+                cfg_illegal_r_a  <= 1'b1;
+                cfg_illegal_r_b  <= 1'b1;
+                cfg_illegal_r_c  <= 1'b1;
+                cfg_illegal_inv  <= 1'b0;
             end else if (write_addr_comb == ADDR_READ_INTERVAL) begin
                 merged_write      = apply_wstrb(read_interval, write_data_comb, write_strb_comb);
                 read_interval     <= merged_write;
                 read_interval_inv <= ~merged_write;
+            end else if (write_addr_comb == ADDR_KAT_CTRL) begin
+                merged_write = apply_wstrb({{(DATA_W-1){1'b0}}, kat_enable}, write_data_comb, write_strb_comb);
+                kat_enable     <= merged_write[0];
+                kat_enable_inv <= ~merged_write[0];
+            end else if (write_addr_comb == ADDR_KAT_ADDR) begin
+                merged_write  = apply_wstrb({{(DATA_W-ADDR_W){1'b0}}, kat_addr}, write_data_comb, write_strb_comb);
+                kat_addr      <= merged_write[ADDR_W-1:0];
+                kat_addr_inv  <= ~merged_write[ADDR_W-1:0];
+            end else if (write_addr_comb == ADDR_KAT_EXPECTED) begin
+                merged_write      = apply_wstrb(kat_expected, write_data_comb, write_strb_comb);
+                kat_expected      <= merged_write;
+                kat_expected_inv  <= ~merged_write;
+            end else if (write_addr_comb == ADDR_KAT_MASK) begin
+                merged_write  = apply_wstrb(kat_mask, write_data_comb, write_strb_comb);
+                kat_mask      <= merged_write;
+                kat_mask_inv  <= ~merged_write;
             end else if ((write_addr_comb >= ADDR_BASE_REGION) &&
                          (write_addr_comb < (ADDR_BASE_REGION + NUM_MASTERS*BASE_STRIDE))) begin
                 seq_m = (write_addr_comb - ADDR_BASE_REGION) / BASE_STRIDE;
@@ -464,19 +570,34 @@ always @(posedge clk) begin
                             expected_inv_q[seq_idx]   <= ~merged_write;
                         end
                         default: begin
-                            write_resp_comb = RESP_SLVERR;
-                            cfg_illegal_r   <= 1'b1;
-                            cfg_illegal_inv <= 1'b0;
+                            write_resp_comb  = RESP_SLVERR;
+                            cfg_illegal_r_a  <= 1'b1;
+                            cfg_illegal_r_b  <= 1'b1;
+                            cfg_illegal_r_c  <= 1'b1;
+                            cfg_illegal_inv  <= 1'b0;
                         end
                     endcase
                 end else begin
-                    write_resp_comb = RESP_SLVERR;
-                    cfg_illegal_r   <= 1'b1;
-                    cfg_illegal_inv <= 1'b0;
+                    write_resp_comb  = RESP_SLVERR;
+                    cfg_illegal_r_a  <= 1'b1;
+                    cfg_illegal_r_b  <= 1'b1;
+                    cfg_illegal_r_c  <= 1'b1;
+                    cfg_illegal_inv  <= 1'b0;
                 end
             end else begin
+                write_resp_comb  = RESP_SLVERR;
+                cfg_illegal_r_a  <= 1'b1;
+                cfg_illegal_r_b  <= 1'b1;
+                cfg_illegal_r_c  <= 1'b1;
+                cfg_illegal_inv  <= 1'b0;
+            end
+
+            // Write-verify: check shadow consistency after write
+            if (shadow_error_comb && write_resp_comb == RESP_OKAY) begin
                 write_resp_comb = RESP_SLVERR;
-                cfg_illegal_r   <= 1'b1;
+                cfg_illegal_r_a <= 1'b1;
+                cfg_illegal_r_b <= 1'b1;
+                cfg_illegal_r_c <= 1'b1;
                 cfg_illegal_inv <= 1'b0;
             end
 

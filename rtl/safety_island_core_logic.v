@@ -74,6 +74,13 @@ module safety_island_core_logic
     input  wire                                      cfg_locked,
     input  wire                                      cfg_illegal,
     input  wire                                      cfg_shadow_error,
+    input  wire                                      test_inject,
+    input  wire                                      heartbeat_active,
+
+    input  wire                                      kat_enable,
+    input  wire [ADDR_W-1:0]                         kat_addr,
+    input  wire [DATA_W-1:0]                         kat_expected,
+    input  wire [DATA_W-1:0]                         kat_mask,
 
     // ─── Read request interface to read engines ───
     output reg  [NUM_MASTERS-1:0]                    m_read_req,
@@ -130,6 +137,8 @@ module safety_island_core_logic
     localparam [3:0] ST_ADVANCE       = 4'h8;
     localparam [3:0] ST_DRAIN_MASTER  = 4'h9;
     localparam [3:0] ST_SCAN_DONE     = 4'hA;
+    localparam [3:0] ST_KAT_READ      = 4'hB;
+    localparam [3:0] ST_KAT_CHECK     = 4'hC;
     localparam [3:0] ST_SAFE_ERROR    = 4'hF;
 
     // Safety error codes (core internal faults only)
@@ -140,6 +149,7 @@ module safety_island_core_logic
     localparam [7:0] ERR_ACCUM_SHADOW      = 8'h43;
     localparam [7:0] ERR_OUTSTANDING       = 8'h44;
     localparam [7:0] ERR_PENDING_FIFO      = 8'h45;
+    localparam [7:0] ERR_KAT_FAIL     = 8'h47;
 
     // Config error codes (for fault detector passthrough)
     localparam [7:0] ERR_CFG_ILLEGAL       = 8'h10;
@@ -162,14 +172,36 @@ module safety_island_core_logic
     // 用于简单 outstanding 支持的寄存器和待处理请求 FIFO
     //--------------------------------------------------------------------------
 
-    reg [3:0]        state;
+    reg [3:0]        state_a, state_b, state_c;
     reg [3:0]        state_inv;
+    wire [3:0]       state;
+    wire             state_tmr_mismatch;
+
+    assign state = (state_a & state_b) | (state_b & state_c) | (state_a & state_c);
+    assign state_tmr_mismatch = |((state_a ^ state_b) & (state_b ^ state_c));
+
     reg [3:0]        state_next;
     reg [63:0]       interval_counter;
     reg              scan_once_d;
     reg              scan_once_pending;
-    reg              safety_fault_q;
-    reg [7:0]        safety_error_code_q;
+    reg              safety_fault_q_a, safety_fault_q_b, safety_fault_q_c;
+    wire             safety_fault_q;
+    wire             safety_fault_q_tmr_mismatch;
+
+    assign safety_fault_q = (safety_fault_q_a & safety_fault_q_b) |
+                            (safety_fault_q_b & safety_fault_q_c) |
+                            (safety_fault_q_a & safety_fault_q_c);
+    assign safety_fault_q_tmr_mismatch = (safety_fault_q_a ^ safety_fault_q_b) &
+                                         (safety_fault_q_b ^ safety_fault_q_c);
+    reg [7:0]        safety_error_code_q_a, safety_error_code_q_b, safety_error_code_q_c;
+    wire [7:0]       safety_error_code_q;
+    wire             safety_error_code_tmr_mismatch;
+
+    assign safety_error_code_q = (safety_error_code_q_a & safety_error_code_q_b) |
+                                 (safety_error_code_q_b & safety_error_code_q_c) |
+                                 (safety_error_code_q_a & safety_error_code_q_c);
+    assign safety_error_code_tmr_mismatch = |((safety_error_code_q_a ^ safety_error_code_q_b) &
+                                              (safety_error_code_q_b ^ safety_error_code_q_c));
 
     // Pending FIFO: stores mask, expected, master, entry for each outstanding req
     reg [DATA_W-1:0] pending_mask_q     [0:MAX_OUTSTANDING-1];
@@ -185,6 +217,12 @@ module safety_island_core_logic
     reg [DATA_W-1:0] fault_or_accum_inv;
 
     integer cfg_m;
+
+    reg              kat_rd_req;
+    reg              kat_rd_done;
+    reg [DATA_W-1:0] kat_rd_data;
+    reg              kat_rd_error;
+    reg              kat_rd_timeout;
     integer cfg_e;
     integer seq_i;
     integer seq_m;
@@ -599,6 +637,8 @@ module safety_island_core_logic
          (state == ST_ADVANCE)       ||
          (state == ST_DRAIN_MASTER)  ||
          (state == ST_SCAN_DONE)     ||
+         (state == ST_KAT_READ)      ||
+         (state == ST_KAT_CHECK)     ||
          (state == ST_SAFE_ERROR));
 
     assign fsm_state_illegal_comb  = !fsm_state_legal_comb;
@@ -623,6 +663,12 @@ module safety_island_core_logic
 
     assign accum_shadow_fault_comb = (fault_or_accum_inv != ~fault_or_accum);
 
+
+    wire kat_fail_comb;
+    assign kat_fail_comb = (state == ST_KAT_CHECK) &&
+        (!((kat_rd_data & kat_mask) == (kat_expected & kat_mask)) ||
+         kat_rd_error || kat_rd_timeout);
+
     assign outstanding_fault_comb =
         (SUPPORT_OUTSTANDING == 0) ? (outstanding_count > 32'd1) :
                                      (outstanding_count > MAX_OUTSTANDING);
@@ -635,6 +681,10 @@ module safety_island_core_logic
         pending_ptr_fault_comb      |
         pending_valid_fault_comb    |
         accum_shadow_fault_comb     |
+        kat_fail_comb               |
+        state_tmr_mismatch          |
+        safety_fault_q_tmr_mismatch |
+        safety_error_code_tmr_mismatch |
         outstanding_fault_comb;
     assign safety_fault_stable_comb = safety_fault_comb & safety_fault_q;
 
@@ -644,7 +694,9 @@ module safety_island_core_logic
 
     always @* begin
         safety_error_code_comb = ERR_NONE;
-        if (fsm_state_illegal_comb)
+        if (kat_fail_comb)
+            safety_error_code_comb = ERR_KAT_FAIL;
+                else if (fsm_state_illegal_comb)
             safety_error_code_comb = ERR_FSM_ILLEGAL;
         else if (state_inv_mismatch_comb)
             safety_error_code_comb = ERR_FSM_INV_MISMATCH;
@@ -673,7 +725,7 @@ module safety_island_core_logic
     assign interval_expired_comb =
         (read_interval != 64'd0) && (interval_counter >= (read_interval - 64'd1));
     assign scan_start_comb =
-        cfg_operational &&
+        cfg_operational && !heartbeat_active &&
         (scan_once_req_comb || (enable && interval_expired_comb));
 
     always @* begin
@@ -707,6 +759,8 @@ module safety_island_core_logic
             ST_PREP_SCAN: begin
                 if (cfg_fault_comb)
                     state_next = ST_IDLE;
+                else if (kat_enable)
+                    state_next = ST_KAT_READ;
                 else
                     state_next = ST_FIND_ENTRY;
             end
@@ -774,6 +828,25 @@ module safety_island_core_logic
                 end
             end
 
+            ST_KAT_READ: begin
+                if (cfg_fault_comb)
+                    state_next = ST_IDLE;
+                else if (kat_rd_done)
+                    state_next = ST_KAT_CHECK;
+                else
+                    state_next = ST_KAT_READ;
+            end
+
+            ST_KAT_CHECK: begin
+                if (cfg_fault_comb)
+                    state_next = ST_IDLE;
+                else if (!kat_rd_error && !kat_rd_timeout &&
+                         ((kat_rd_data & kat_mask) == (kat_expected & kat_mask)))
+                    state_next = ST_FIND_ENTRY;
+                else
+                    state_next = ST_SAFE_ERROR;
+            end
+
             ST_DRAIN_MASTER: begin
                 if (cfg_fault_comb)
                     state_next = ST_IDLE;
@@ -818,6 +891,8 @@ module safety_island_core_logic
             ST_WAIT_DONE,
             ST_WAIT_SLOT,
             ST_ADVANCE,
+            ST_KAT_READ,
+            ST_KAT_CHECK,
             ST_DRAIN_MASTER: begin
                 scan_busy_next_comb = 1'b1;
             end
@@ -833,13 +908,19 @@ module safety_island_core_logic
 
     always @(posedge clk) begin
         if (rst) begin
-            state                     <= ST_IDLE;
+            state_a                   <= ST_IDLE;
+            state_b                   <= ST_IDLE;
+            state_c                   <= ST_IDLE;
             state_inv                 <= ~ST_IDLE;
             interval_counter          <= 64'd0;
             scan_once_d               <= 1'b0;
             scan_once_pending         <= 1'b0;
-            safety_fault_q            <= 1'b0;
-            safety_error_code_q       <= ERR_NONE;
+            safety_fault_q_a          <= 1'b0;
+            safety_fault_q_b          <= 1'b0;
+            safety_fault_q_c          <= 1'b0;
+            safety_error_code_q_a     <= ERR_NONE;
+            safety_error_code_q_b     <= ERR_NONE;
+            safety_error_code_q_c     <= ERR_NONE;
             fault_or_accum            <= {DATA_W{1'b0}};
             fault_or_accum_inv        <= {DATA_W{1'b1}};
             pending_wr_ptr            <= 32'd0;
@@ -887,12 +968,18 @@ module safety_island_core_logic
             if (clear_core_status) begin
                 // Only reset when no outstanding transactions are in flight
                 if (outstanding_count == 32'd0) begin
-                    state                     <= ST_IDLE;
+                    state_a                   <= ST_IDLE;
+                    state_b                   <= ST_IDLE;
+                    state_c                   <= ST_IDLE;
                     state_inv                 <= ~ST_IDLE;
                     interval_counter          <= 64'd0;
                     scan_once_pending         <= 1'b0;
-                    safety_fault_q            <= 1'b0;
-                    safety_error_code_q       <= ERR_NONE;
+                    safety_fault_q_a          <= 1'b0;
+                    safety_fault_q_b          <= 1'b0;
+                    safety_fault_q_c          <= 1'b0;
+                    safety_error_code_q_a     <= ERR_NONE;
+                    safety_error_code_q_b     <= ERR_NONE;
+                    safety_error_code_q_c     <= ERR_NONE;
                     fault_or_accum            <= {DATA_W{1'b0}};
                     fault_or_accum_inv        <= {DATA_W{1'b1}};
                     pending_wr_ptr            <= 32'd0;
@@ -914,16 +1001,24 @@ module safety_island_core_logic
                     end
                 end else begin
                     // Wait for outstanding drain, force FSM to drain outstanding
-                    state           <= ST_DRAIN_MASTER;
-                    state_inv       <= ~ST_DRAIN_MASTER;
+                    state_a           <= ST_DRAIN_MASTER;
+                    state_b           <= ST_DRAIN_MASTER;
+                    state_c           <= ST_DRAIN_MASTER;
+                    state_inv         <= ~ST_DRAIN_MASTER;
                     scan_once_pending <= 1'b0;
                 end
             end else begin
-                state     <= state_next;
-                state_inv <= ~state_next;
-                scan_busy <= scan_busy_next_comb;
-                safety_fault_q      <= safety_fault_comb;
-                safety_error_code_q <= safety_error_code_comb;
+                state_a     <= state_next;
+                state_b     <= state_next;
+                state_c     <= state_next;
+                state_inv   <= ~state_next;
+                scan_busy   <= scan_busy_next_comb;
+                safety_fault_q_a      <= safety_fault_comb;
+                safety_fault_q_b      <= safety_fault_comb;
+                safety_fault_q_c      <= safety_fault_comb;
+                safety_error_code_q_a <= safety_error_code_comb;
+                safety_error_code_q_b <= safety_error_code_comb;
+                safety_error_code_q_c <= safety_error_code_comb;
 
                 if (scan_once_re)
                     scan_once_pending <= 1'b1;
@@ -969,6 +1064,11 @@ module safety_island_core_logic
                     end
                 end
 
+                // Heartbeat test injection: force accum_inv to mismatch
+                if (test_inject && !pop_response_comb) begin
+                    fault_or_accum_inv <= ~fault_or_accum_inv;
+                end
+
                 // ── 压入新请求 ──
                 if (push_request_comb) begin
                     pending_mask_q[pending_wr_ptr]     <= current_mask;
@@ -1007,6 +1107,10 @@ module safety_island_core_logic
                             pending_entry_q[seq_i]    <= 32'd0;
                             pending_valid_q[seq_i]    <= 1'b0;
                         end
+                        kat_rd_done    <= 1'b0;
+                        kat_rd_data    <= {DATA_W{1'b0}};
+                        kat_rd_error   <= 1'b0;
+                        kat_rd_timeout <= 1'b0;
                     end
 
                     ST_ISSUE_REQ: begin
@@ -1040,6 +1144,24 @@ module safety_island_core_logic
                         end
                     end
 
+
+                    ST_KAT_READ: begin
+                        if (!kat_rd_done) begin
+                            m_read_req[0] <= 1'b1;
+                            m_read_addr_flat[0*ADDR_W +: ADDR_W] <= kat_addr;
+                            m_burst_type_flat[0*2 +: 2] <= 2'b01;
+                            m_burst_len_flat[0*8 +: 8] <= 8'd0;
+                        end
+                        if (m_read_accept[0]) begin
+                            m_read_req[0] <= 1'b0;
+                        end
+                        if (m_read_done[0]) begin
+                            kat_rd_data    <= m_read_data_flat[0*DATA_W +: DATA_W];
+                            kat_rd_error   <= m_resp_error[0];
+                            kat_rd_timeout <= m_timeout[0];
+                            kat_rd_done    <= 1'b1;
+                        end
+                    end
                     ST_SCAN_DONE: begin
                         scan_done_pulse <= 1'b1;
                     end

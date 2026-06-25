@@ -10,6 +10,7 @@ localparam ID_W            = 4;
 localparam MAX_OUTSTANDING = 4;
 localparam MEM_WORDS       = 512;
 localparam Q_DEPTH         = 16;
+localparam TB_CRC_WIDTH    = 16;  // must match DUT CRC_WIDTH
 
 localparam [31:0] ADDR_CONTROL       = 32'h0000_0000;
 localparam [31:0] ADDR_READ_INTERVAL = 32'h0000_0008;
@@ -25,6 +26,11 @@ localparam [31:0] ENTRY_OFFSET_OFF   = 32'h0000_0000;
 localparam [31:0] ENTRY_MASK_OFF     = 32'h0000_0008;
 localparam [31:0] ENTRY_BURST_OFF    = 32'h0000_0010;
 localparam [31:0] ENTRY_EXPECTED_OFF = 32'h0000_0018;
+
+localparam [31:0] ADDR_KAT_CTRL     = 32'h0000_0038;
+localparam [31:0] ADDR_KAT_ADDR     = 32'h0000_0040;
+localparam [31:0] ADDR_KAT_EXPECTED = 32'h0000_0048;
+localparam [31:0] ADDR_KAT_MASK     = 32'h0000_0050;
 
 reg clk;
 reg rst;
@@ -103,7 +109,7 @@ reg  [NUM_MASTERS*DATA_W-1:0]     m_axi_rdata_flat;
 reg  [NUM_MASTERS*2-1:0]          m_axi_rresp_flat;
 reg  [NUM_MASTERS-1:0]            m_axi_rlast_flat;
 reg  [NUM_MASTERS-1:0]            m_axi_rvalid_flat;
-reg  [NUM_MASTERS*8-1:0]          m_axi_rcheck_flat;
+reg  [NUM_MASTERS*TB_CRC_WIDTH-1:0] m_axi_rcheck_flat;
 wire [NUM_MASTERS-1:0]            m_axi_rready_flat;
 
 wire                  fault_detect;
@@ -145,7 +151,8 @@ safety_island_top #(
     .DATA_W(DATA_W),
     .ID_W(ID_W),
     .TIMEOUT_CYCLES(48),
-    .MAX_OUTSTANDING(MAX_OUTSTANDING)
+    .MAX_OUTSTANDING(MAX_OUTSTANDING),
+    .CRC_WIDTH(TB_CRC_WIDTH)
 ) dut (
     .clk(clk),
     .rst(rst),
@@ -275,6 +282,84 @@ begin
 end
 endfunction
 
+function [7:0] crc8_two_stage;
+    input [ID_W-1:0]   ar_id;
+    input [ADDR_W-1:0] ar_addr;
+    input [7:0]        ar_len;
+    input [1:0]        ar_burst;
+    input [ID_W-1:0]   r_id;
+    input [DATA_W-1:0] r_data;
+    input [1:0]        r_resp;
+    input              r_last;
+    reg [ID_W+ADDR_W+8+3+2-1:0] ar_payload;
+    reg [8+ID_W+DATA_W+2+1-1:0] r_payload;
+    reg [7:0] ar_sig;
+    reg [7:0] crc;
+    reg feedback;
+    integer bit_i;
+begin
+    // Stage 1: CRC-8 of AR fields (poly 0x07, init 0x00)
+    ar_payload = {ar_id, ar_addr, ar_len, 3'd3, ar_burst};
+    crc = 8'h00;
+    for (bit_i = ID_W + ADDR_W + 8 + 3 + 2 - 1; bit_i >= 0; bit_i = bit_i - 1) begin
+        feedback = crc[7] ^ ar_payload[bit_i];
+        crc = {crc[6:0], 1'b0};
+        if (feedback) crc = crc ^ 8'h07;
+    end
+    ar_sig = crc;
+    // Stage 2: CRC-8 of {ar_sig, R fields} (poly 0x07, init 0x00)
+    r_payload = {ar_sig, r_id, r_data, r_resp, r_last};
+    crc = 8'h00;
+    for (bit_i = 8 + ID_W + DATA_W + 2 + 1 - 1; bit_i >= 0; bit_i = bit_i - 1) begin
+        feedback = crc[7] ^ r_payload[bit_i];
+        crc = {crc[6:0], 1'b0};
+        if (feedback) crc = crc ^ 8'h07;
+    end
+    crc8_two_stage = crc;
+end
+endfunction
+
+function [15:0] crc16_ccitt;
+    input [ID_W-1:0]             ar_id;
+    input [ADDR_W-1:0]           ar_addr;
+    input [7:0]                  ar_len;
+    input [2:0]                  ar_size;
+    input [1:0]                  ar_burst;
+    input [ID_W-1:0]             r_id;
+    input [DATA_W-1:0]           r_data;
+    input [1:0]                  r_resp;
+    input                        r_last;
+    reg [ID_W+ADDR_W+8+3+2-1:0] ar_payload;
+    reg [TB_CRC_WIDTH+ID_W+DATA_W+2+1-1:0] r_payload;
+    reg [15:0] ar_sig;
+    reg [15:0] crc;
+    reg feedback;
+    integer bit_i;
+begin
+    // Stage 1: CRC-16 of AR fields (poly 0x1021, init 0xFFFF)
+    ar_payload = {ar_id, ar_addr, ar_len, ar_size, ar_burst};
+    crc = 16'hFFFF;
+    for (bit_i = ID_W + ADDR_W + 8 + 3 + 2 - 1; bit_i >= 0; bit_i = bit_i - 1) begin
+        feedback = crc[15] ^ ar_payload[bit_i];
+        crc = {crc[14:0], 1'b0};
+        if (feedback)
+            crc = crc ^ 16'h1021;
+    end
+    ar_sig = crc;
+
+    // Stage 2: CRC-16 of {ar_sig, R fields} (poly 0x1021, init 0xFFFF)
+    r_payload = {ar_sig, r_id, r_data, r_resp, r_last};
+    crc = 16'hFFFF;
+    for (bit_i = TB_CRC_WIDTH + ID_W + DATA_W + 2 + 1 - 1; bit_i >= 0; bit_i = bit_i - 1) begin
+        feedback = crc[15] ^ r_payload[bit_i];
+        crc = {crc[14:0], 1'b0};
+        if (feedback)
+            crc = crc ^ 16'h1021;
+    end
+    crc16_ccitt = crc;
+end
+endfunction
+
 function [DATA_W-1:0] mem_read_data;
     input integer master;
     input [31:0] addr;
@@ -355,7 +440,7 @@ begin
     m_axi_rresp_flat = {(NUM_MASTERS*2){1'b0}};
     m_axi_rlast_flat = {NUM_MASTERS{1'b0}};
     m_axi_rvalid_flat = {NUM_MASTERS{1'b0}};
-    m_axi_rcheck_flat = {(NUM_MASTERS*8){1'b0}};
+    m_axi_rcheck_flat = {(NUM_MASTERS*TB_CRC_WIDTH){1'b0}};
 end
 endtask
 
@@ -560,7 +645,7 @@ reg [ID_W-1:0] resp_id;
 reg [DATA_W-1:0] resp_data;
 reg [1:0] resp_status;
 reg resp_last;
-reg [7:0] resp_check;
+reg [TB_CRC_WIDTH-1:0] resp_check;
 reg can_respond;
 always @(posedge clk) begin
     if (rst) begin
@@ -662,7 +747,26 @@ always @(posedge clk) begin
                     resp_data = mem_read_data(am, resp_addr);
                     resp_status = q_err[(am) * Q_DEPTH + (sel_q)] ? 2'b10 : 2'b00;
                     resp_last = (q_beat[(am) * Q_DEPTH + (sel_q)] == q_len[(am) * Q_DEPTH + (sel_q)]);
-                    resp_check = crc8_rbeat(resp_id, resp_data, resp_status, resp_last);
+                    // Parameterized CRC: compute with AR signature when CRC_WIDTH=16
+                    if (TB_CRC_WIDTH == 16) begin
+                        resp_check = crc16_ccitt(
+                            q_id[(am) * Q_DEPTH + (sel_q)],      // ARID
+                            q_addr[(am) * Q_DEPTH + (sel_q)],    // ARADDR
+                            q_len[(am) * Q_DEPTH + (sel_q)],     // ARLEN
+                            3'd3,                                 // ARSIZE
+                            q_burst[(am) * Q_DEPTH + (sel_q)],   // ARBURST
+                            resp_id, resp_data, resp_status, resp_last
+                        );
+                    end else begin
+                        resp_check = {8{1'b0}};
+                        resp_check[7:0] = crc8_two_stage(
+                            q_id[(am) * Q_DEPTH + (sel_q)],
+                            q_addr[(am) * Q_DEPTH + (sel_q)],
+                            q_len[(am) * Q_DEPTH + (sel_q)],
+                            q_burst[(am) * Q_DEPTH + (sel_q)],
+                            resp_id, resp_data, resp_status, resp_last
+                        );
+                    end
                     if ((am == rcheck_error_master) &&
                         ((rcheck_error_beat < 0) || (q_beat[(am) * Q_DEPTH + (sel_q)] == rcheck_error_beat[7:0])))
                         resp_check = resp_check ^ 8'h5A;
@@ -671,7 +775,7 @@ always @(posedge clk) begin
                     m_axi_rdata_flat[am*DATA_W +: DATA_W] <= resp_data;
                     m_axi_rresp_flat[am*2 +: 2] <= resp_status;
                     m_axi_rlast_flat[am] <= resp_last;
-                    m_axi_rcheck_flat[am*8 +: 8] <= resp_check;
+                    m_axi_rcheck_flat[am*TB_CRC_WIDTH +: TB_CRC_WIDTH] <= resp_check;
                 end
             end
         end
@@ -685,6 +789,18 @@ begin
     config_base(2, 32'h0000_2000);
     config_base(3, 32'h0000_3000);
     config_base(4, 32'h0000_4000);
+end
+endtask
+
+task config_kat;
+    input [ADDR_W-1:0] addr;
+    input [DATA_W-1:0] expected;
+    input [DATA_W-1:0] mask;
+begin
+    axi_cfg_write(ADDR_KAT_ADDR, {{(DATA_W-ADDR_W){1'b0}}, addr});
+    axi_cfg_write(ADDR_KAT_EXPECTED, expected);
+    axi_cfg_write(ADDR_KAT_MASK, mask);
+    axi_cfg_write(ADDR_KAT_CTRL, 64'h1);  // enable KAT
 end
 endtask
 
@@ -1112,6 +1228,298 @@ begin
 end
 endtask
 
+task heartbeat_pass_flow;
+    reg [DATA_W-1:0] status;
+begin
+    case_fail = 0;
+    reset_dut();
+    setup_default_base();
+    ext_mem[(0) * MEM_WORDS + (0)] = 64'h0;
+    config_entry(0, 0, 32'h0, 64'hFFFF_FFFF_FFFF_FFFF, 2'b01, 8'd0, 1'b1, 64'd0);
+    lock_enable_scan();
+    // Wait for heartbeat to fire (1024 cycles default interval)
+    wait_cycles(1100);
+    // Read status — heartbeat should have completed without permanent fault
+    axi_cfg_read(ADDR_STATUS, status);
+    // Check: heartbeat_fault should NOT be asserted
+    if (dut.u_heartbeat.heartbeat_fault) begin
+        $display("FAIL: heartbeat_fault asserted unexpectedly");
+        case_fail = case_fail + 1;
+        total_fail = total_fail + 1;
+    end
+    // The scan should complete even after heartbeat tests
+    wait_scan_done(5000);
+    pass_case("heartbeat_pass_flow");
+end
+endtask
+
+task heartbeat_fail_flow;
+begin
+    case_fail = 0;
+    reset_dut();
+    setup_default_base();
+    ext_mem[(0) * MEM_WORDS + (0)] = 64'h0;
+    config_entry(0, 0, 32'h0, 64'hFFFF_FFFF_FFFF_FFFF, 2'b01, 8'd0, 1'b1, 64'd0);
+    lock_enable_scan();
+    // Force safety_island_fault_detect to be stuck at 0
+    force safety_island_fault_detect = 1'b0;
+    wait_cycles(1100);
+    // Heartbeat should have detected the stuck fault
+    if (!dut.u_heartbeat.heartbeat_fault) begin
+        $display("FAIL: heartbeat did not detect stuck fault_detect");
+        case_fail = case_fail + 1;
+        total_fail = total_fail + 1;
+    end
+    release safety_island_fault_detect;
+    pass_case("heartbeat_fail_flow");
+end
+endtask
+
+task heartbeat_no_interfere_flow;
+    reg [DATA_W-1:0] status;
+begin
+    case_fail = 0;
+    reset_dut();
+    setup_default_base();
+    // Configure multi-entry scan so scan_busy stays high
+    ext_mem[(0) * MEM_WORDS + (0)] = 64'h0;
+    ext_mem[(0) * MEM_WORDS + (1)] = 64'h0;
+    ext_mem[(0) * MEM_WORDS + (2)] = 64'h0;
+    config_entry(0, 0, 32'h0,  64'hFFFF_FFFF_FFFF_FFFF, 2'b01, 8'd0, 1'b1, 64'd0);
+    config_entry(0, 1, 32'h8,  64'hFFFF_FFFF_FFFF_FFFF, 2'b01, 8'd0, 1'b1, 64'd0);
+    config_entry(0, 2, 32'h10, 64'hFFFF_FFFF_FFFF_FFFF, 2'b01, 8'd0, 1'b1, 64'd0);
+    lock_enable_scan();
+    // Wait for scan to complete (should not be interrupted by heartbeat)
+    wait_scan_done(3000);
+    if (dut.u_heartbeat.heartbeat_fault) begin
+        $display("FAIL: heartbeat interfered with scan");
+        case_fail = case_fail + 1;
+        total_fail = total_fail + 1;
+    end
+    pass_case("heartbeat_no_interfere_flow");
+end
+endtask
+
+task kat_pass_flow;
+    reg [DATA_W-1:0] status;
+begin
+    case_fail = 0;
+    reset_dut();
+    setup_default_base();
+    // Set known value at KAT address
+    ext_mem[(0) * MEM_WORDS + (0)] = 64'h5A5A_5A5A_5A5A_5A5A;
+    config_entry(0, 0, 32'h0, 64'hFFFF_FFFF_FFFF_FFFF, 2'b01, 8'd0, 1'b1, 64'd0);
+    // Configure KAT: address=0x0, expected=0x5A5A..., mask=all-ones
+    config_kat(32'h0000_0000, 64'h5A5A_5A5A_5A5A_5A5A, 64'hFFFF_FFFF_FFFF_FFFF);
+    lock_enable_scan();
+    wait_scan_done(5000);
+    // KAT passes → scan completes normally
+    if (safety_island_fault_detect) begin
+        $display("FAIL: KAT pass test triggered safety_island_fault_detect");
+        case_fail = case_fail + 1;
+        total_fail = total_fail + 1;
+    end
+    pass_case("kat_pass_flow");
+end
+endtask
+
+task kat_fail_flow;
+begin
+    case_fail = 0;
+    reset_dut();
+    setup_default_base();
+    ext_mem[(0) * MEM_WORDS + (0)] = 64'h0000_0000_0000_0000;
+    config_entry(0, 0, 32'h0, 64'hFFFF_FFFF_FFFF_FFFF, 2'b01, 8'd0, 1'b1, 64'd0);
+    // KAT expects 0x5A5A but memory has 0x0 → KAT fails
+    config_kat(32'h0000_0000, 64'h5A5A_5A5A_5A5A_5A5A, 64'hFFFF_FFFF_FFFF_FFFF);
+    lock_enable_scan();
+    wait_fault_detect(5000);
+    expect_equal("kat_fail_safety", {63'd0, safety_island_fault_detect}, 64'h1);
+    expect_equal("kat_fail_code", {56'd0, core_error_code}, 64'h47);
+    pass_case("kat_fail_flow");
+end
+endtask
+
+task kat_disabled_flow;
+begin
+    case_fail = 0;
+    reset_dut();
+    setup_default_base();
+    ext_mem[(0) * MEM_WORDS + (0)] = 64'h0;
+    config_entry(0, 0, 32'h0, 64'hFFFF_FFFF_FFFF_FFFF, 2'b01, 8'd0, 1'b1, 64'd0);
+    // Do NOT enable KAT
+    lock_enable_scan();
+    wait_scan_done(3000);
+    expect_equal("kat_disabled_fault", {63'd0, fault_detect}, 64'h0);
+    pass_case("kat_disabled_flow");
+end
+endtask
+
+task kat_araddr_corrupt_flow;
+begin
+    case_fail = 0;
+    $display("NOTE: kat_araddr_corrupt_flow requires CRC_WIDTH=16");
+    reset_dut();
+    setup_default_base();
+    ext_mem[(0) * MEM_WORDS + (0)] = 64'h5A5A_5A5A_5A5A_5A5A;
+    config_entry(0, 0, 32'h0, 64'hFFFF_FFFF_FFFF_FFFF, 2'b01, 8'd0, 1'b1, 64'd0);
+    config_kat(32'h0000_0000, 64'h5A5A_5A5A_5A5A_5A5A, 64'hFFFF_FFFF_FFFF_FFFF);
+    lock_enable_scan();
+    wait_cycles(3);
+    // Force ARADDR corruption on KAT read
+    force dut.gen_read_master[0].u_read_engine.m_axi_araddr = 32'h0000_0008;
+    wait_fault_detect(5000);
+    // Either E2E CRC catches it (bus fault) or KAT catches it (safety fault)
+    if (!fault_detect && !safety_island_fault_detect) begin
+        $display("FAIL: KAT addr corrupt not detected");
+        case_fail = case_fail + 1;
+        total_fail = total_fail + 1;
+    end
+    release dut.gen_read_master[0].u_read_engine.m_axi_araddr;
+    pass_case("kat_araddr_corrupt_flow");
+end
+endtask
+
+task tmr_state_ok_flow;
+    reg [DATA_W-1:0] status;
+begin
+    case_fail = 0;
+    reset_dut();
+    setup_default_base();
+    ext_mem[(0) * MEM_WORDS + (0)] = 64'h0;
+    config_entry(0, 0, 32'h0, 64'hFFFF_FFFF_FFFF_FFFF, 2'b01, 8'd0, 1'b1, 64'd0);
+    lock_enable_scan();
+    wait_scan_done(3000);
+    // Check that TMR state is consistent (no mismatch during normal operation)
+    if (dut.u_core.state_tmr_mismatch) begin
+        $display("FAIL: state_tmr_mismatch asserted during normal operation");
+        case_fail = case_fail + 1;
+        total_fail = total_fail + 1;
+    end
+    pass_case("tmr_state_ok_flow");
+end
+endtask
+
+task tmr_state_minority_flow;
+begin
+    case_fail = 0;
+    reset_dut();
+    setup_default_base();
+    ext_mem[(0) * MEM_WORDS + (0)] = 64'h0;
+    config_entry(0, 0, 32'h0, 64'hFFFF_FFFF_FFFF_FFFF, 2'b01, 8'd0, 1'b1, 64'd0);
+    lock_enable_scan();
+    wait_cycles(10);
+    // Force one TMR copy to differ — majority still correct
+    force dut.u_core.state_b = 4'hF;
+    wait_cycles(5);
+    // FSM should still operate (majority of state_a and state_c)
+    if (dut.u_core.state_tmr_mismatch) begin
+        $display("FAIL: state_tmr_mismatch asserted on single-copy fault");
+        case_fail = case_fail + 1;
+        total_fail = total_fail + 1;
+    end
+    release dut.u_core.state_b;
+    wait_cycles(5);
+    pass_case("tmr_state_minority_flow");
+end
+endtask
+
+task tmr_state_double_fault_flow;
+begin
+    case_fail = 0;
+    reset_dut();
+    setup_default_base();
+    ext_mem[(0) * MEM_WORDS + (0)] = 64'h0;
+    config_entry(0, 0, 32'h0, 64'hFFFF_FFFF_FFFF_FFFF, 2'b01, 8'd0, 1'b1, 64'd0);
+    lock_enable_scan();
+    wait_cycles(10);
+    // Force two TMR copies to differ from third — no majority
+    force dut.u_core.state_b = 4'hF;
+    force dut.u_core.state_c = 4'hE;
+    wait_cycles(5);
+    // TMR mismatch should be detected
+    if (!dut.u_core.state_tmr_mismatch) begin
+        $display("FAIL: state_tmr_mismatch not asserted on double fault");
+        case_fail = case_fail + 1;
+        total_fail = total_fail + 1;
+    end
+    release dut.u_core.state_b;
+    release dut.u_core.state_c;
+    pass_case("tmr_state_double_fault_flow");
+end
+endtask
+
+task tmr_fd_stuck_flow;
+begin
+    case_fail = 0;
+    reset_dut();
+    setup_default_base();
+    ext_mem[(0) * MEM_WORDS + (0)] = 64'h4;
+    config_entry(0, 0, 32'h0, 64'hFFFF_FFFF_FFFF_FFFF, 2'b01, 8'd0, 1'b1, 64'd0);
+    lock_enable_scan();
+    // Force one fd driver stuck at 0
+    force dut.fd_b = 1'b0;
+    wait_fault_detect(5000);
+    // Majority vote (fd_a=1, fd_c=1) should still drive fault_detect=1
+    expect_equal("tmr_fd_stuck_fault", {63'd0, fault_detect}, 64'h1);
+    release dut.fd_b;
+    pass_case("tmr_fd_stuck_flow");
+end
+endtask
+
+task tmr_cfg_locked_fault_flow;
+begin
+    case_fail = 0;
+    reset_dut();
+    setup_default_base();
+    config_entry(0, 0, 32'h0, 64'hFFFF_FFFF_FFFF_FFFF, 2'b01, 8'd0, 1'b1, 64'd0);
+    axi_cfg_write(ADDR_READ_INTERVAL, 64'd8);
+    axi_cfg_write(ADDR_CONTROL, 64'h8);  // lock
+    wait_cycles(5);
+    // Force one locked copy to 0 (unlocked)
+    force dut.u_cfg.cfg_locked_r_b = 1'b0;
+    // Majority vote still says locked
+    if (!dut.u_cfg.cfg_locked_r) begin
+        $display("FAIL: cfg_locked_r became 0 after single copy fault");
+        case_fail = case_fail + 1;
+        total_fail = total_fail + 1;
+    end
+    release dut.u_cfg.cfg_locked_r_b;
+    pass_case("tmr_cfg_locked_fault_flow");
+end
+endtask
+
+task write_verify_pass_flow;
+    reg [DATA_W-1:0] rdback;
+begin
+    case_fail = 0;
+    reset_dut();
+    axi_cfg_write(ADDR_READ_INTERVAL, 64'd8);
+    axi_cfg_read(ADDR_READ_INTERVAL, rdback);
+    expect_equal("write_verify_pass_readback", rdback, 64'd8);
+    pass_case("write_verify_pass_flow");
+end
+endtask
+
+task write_verify_fail_flow;
+begin
+    case_fail = 0;
+    reset_dut();
+    setup_default_base();
+    axi_cfg_write(ADDR_READ_INTERVAL, 64'd8);
+    // Force the shadow register to mismatch
+    force dut.u_cfg.read_interval_inv = 64'hFFFF_FFFF_FFFF_FFFF;
+    wait_cycles(2);
+    if (!dut.u_cfg.cfg_shadow_error) begin
+        $display("FAIL: shadow_error not detected after forced mismatch");
+        case_fail = case_fail + 1;
+        total_fail = total_fail + 1;
+    end
+    release dut.u_cfg.read_interval_inv;
+    pass_case("write_verify_fail_flow");
+end
+endtask
+
 initial begin
     $dumpfile("sim_output/safety_island_top_full.vcd");
     $dumpvars(0, tb_safety_island_top_full);
@@ -1150,6 +1558,24 @@ initial begin
     expected_mismatch_flow();
     expected_match_flow();
     expected_masked_match_flow();
+
+    heartbeat_pass_flow();
+    heartbeat_fail_flow();
+    heartbeat_no_interfere_flow();
+
+    kat_pass_flow();
+    kat_fail_flow();
+    kat_disabled_flow();
+    kat_araddr_corrupt_flow();
+
+    tmr_state_ok_flow();
+    tmr_state_minority_flow();
+    tmr_state_double_fault_flow();
+    tmr_fd_stuck_flow();
+    tmr_cfg_locked_fault_flow();
+
+    write_verify_pass_flow();
+    write_verify_fail_flow();
 
     if (total_fail == 0) begin
         $display("PASS: safety_island_top full test completed, cases=%0d", total_pass);

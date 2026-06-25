@@ -27,7 +27,8 @@ module safety_island_top #(
     parameter TIMEOUT_CYCLES      = 1024,
     parameter SUPPORT_OUTSTANDING = 1,
     parameter MAX_OUTSTANDING     = 4,
-    parameter STUCK_AT_THRESHOLD  = 10
+    parameter STUCK_AT_THRESHOLD  = 10,
+    parameter CRC_WIDTH           = 16
 ) (
     input  wire                                      clk,
     input  wire                                      rst,
@@ -108,7 +109,7 @@ module safety_island_top #(
     input  wire [NUM_MASTERS*2-1:0]                  m_axi_rresp_flat,
     input  wire [NUM_MASTERS-1:0]                    m_axi_rlast_flat,
     input  wire [NUM_MASTERS-1:0]                    m_axi_rvalid_flat,
-    input  wire [NUM_MASTERS*8-1:0]                  m_axi_rcheck_flat,
+    input  wire [NUM_MASTERS*CRC_WIDTH-1:0]          m_axi_rcheck_flat,
     output wire [NUM_MASTERS-1:0]                    m_axi_rready_flat,
 
     // ─── Fault outputs (driven by fault_detector) ───
@@ -140,6 +141,11 @@ module safety_island_top #(
     wire                                      cfg_locked;
     wire                                      cfg_illegal;
     wire                                      cfg_shadow_error;
+
+    wire                                      cfg_kat_enable;
+    wire [ADDR_W-1:0]                         cfg_kat_addr;
+    wire [DATA_W-1:0]                         cfg_kat_expected;
+    wire [DATA_W-1:0]                         cfg_kat_mask;
 
     //--------------------------------------------------------------------------
     // Core Logic ↔ Read Engine 信号
@@ -194,6 +200,11 @@ module safety_island_top #(
     wire [DATA_W-1:0]                         fd_fault_or_result;
     wire [7:0]                                fd_error_code;
 
+    // Heartbeat signals
+    wire                                      heartbeat_fault;
+    wire                                      heartbeat_active;
+    wire                                      heartbeat_test_inject;
+
     //--------------------------------------------------------------------------
     // Read Engine 响应信号（generate 块中使用）
     //--------------------------------------------------------------------------
@@ -208,8 +219,22 @@ module safety_island_top #(
     // 顶层故障输出 = fault_detector 输出
     //--------------------------------------------------------------------------
 
-    assign fault_detect                    = fd_external_fault | fd_bus_fault | fd_cfg_fault;
-    assign safety_island_fault_detect      = fd_safety_island_fault;
+    (* DONT_TOUCH = "TRUE" *) wire fd_a = fd_external_fault | fd_bus_fault | fd_cfg_fault;
+    (* DONT_TOUCH = "TRUE" *) wire fd_b = fd_external_fault | fd_bus_fault | fd_cfg_fault;
+    (* DONT_TOUCH = "TRUE" *) wire fd_c = fd_external_fault | fd_bus_fault | fd_cfg_fault;
+
+    wire fd_tmr_mismatch;
+    assign fault_detect = (fd_a & fd_b) | (fd_b & fd_c) | (fd_a & fd_c);
+    assign fd_tmr_mismatch = (fd_a ^ fd_b) & (fd_b ^ fd_c);
+
+    (* DONT_TOUCH = "TRUE" *) wire sifd_a = fd_safety_island_fault | heartbeat_fault;
+    (* DONT_TOUCH = "TRUE" *) wire sifd_b = fd_safety_island_fault | heartbeat_fault;
+    (* DONT_TOUCH = "TRUE" *) wire sifd_c = fd_safety_island_fault | heartbeat_fault;
+
+    wire sifd_tmr_mismatch;
+    assign safety_island_fault_detect = ((sifd_a & sifd_b) | (sifd_b & sifd_c) | (sifd_a & sifd_c))
+                                       | fd_tmr_mismatch | sifd_tmr_mismatch;
+    assign sifd_tmr_mismatch = (sifd_a ^ sifd_b) & (sifd_b ^ sifd_c);
     assign safety_island_latent_fault_detect = fd_safety_island_latent_fault |
                                               cfg_shadow_error | fd_safety_island_fault;
     assign fault_or_result                 = fd_fault_or_result;
@@ -280,6 +305,10 @@ module safety_island_top #(
         .cfg_locked               (cfg_locked),
         .cfg_illegal              (cfg_illegal),
         .cfg_shadow_error         (cfg_shadow_error),
+        .kat_enable_out          (cfg_kat_enable),
+        .kat_addr_out            (cfg_kat_addr),
+        .kat_expected_out        (cfg_kat_expected),
+        .kat_mask_out            (cfg_kat_mask),
         .scan_busy                (scan_busy),
         .scan_done_pulse          (scan_done_pulse),
         .current_master_idx       (current_master_idx),
@@ -325,6 +354,10 @@ module safety_island_top #(
         .cfg_locked           (cfg_locked),
         .cfg_illegal          (cfg_illegal),
         .cfg_shadow_error     (cfg_shadow_error),
+        .kat_enable              (cfg_kat_enable),
+        .kat_addr                (cfg_kat_addr),
+        .kat_expected            (cfg_kat_expected),
+        .kat_mask                (cfg_kat_mask),
         .m_read_req           (core_read_req),
         .m_read_addr_flat     (core_read_addr_flat),
         .m_burst_type_flat    (core_burst_type_flat),
@@ -353,7 +386,9 @@ module safety_island_top #(
         .cfg_shadow_error_out (cfg_shadow_error_out),
         .cfg_interval_fault_out(cfg_interval_fault_out),
         .core_safety_fault    (core_safety_fault),
-        .core_safety_error_code(core_safety_error_code)
+        .core_safety_error_code(core_safety_error_code),
+        .test_inject              (heartbeat_test_inject),
+        .heartbeat_active         (heartbeat_active)
     );
 
     //--------------------------------------------------------------------------
@@ -394,6 +429,23 @@ module safety_island_top #(
         .fault_or_result        (fd_fault_or_result),
         .fault_status           (),  // 64-bit internal status (exposed via config slave if needed)
         .error_code             (fd_error_code)
+    );
+
+    //--------------------------------------------------------------------------
+    // safety_island_heartbeat
+    //--------------------------------------------------------------------------
+
+    safety_island_heartbeat #(
+        .HEARTBEAT_INTERVAL(1024)
+    ) u_heartbeat (
+        .clk                          (clk),
+        .rst                          (rst),
+        .enable                       (cfg_enable),
+        .scan_busy                    (scan_busy),
+        .test_inject                  (heartbeat_test_inject),
+        .heartbeat_fault              (heartbeat_fault),
+        .heartbeat_active             (heartbeat_active),
+        .safety_island_fault_detect   (safety_island_fault_detect)
     );
 
     //--------------------------------------------------------------------------
@@ -503,7 +555,8 @@ module safety_island_top #(
                 .DATA_WIDTH     (DATA_W),
                 .ID_WIDTH       (ID_W),
                 .TIMEOUT_CYCLES (TIMEOUT_CYCLES),
-                .MAX_OUTSTANDING(MAX_OUTSTANDING)
+                .MAX_OUTSTANDING(MAX_OUTSTANDING),
+                .CRC_WIDTH      (CRC_WIDTH)
             ) u_read_engine (
                 .clk           (clk),
                 .rst           (rst),
@@ -534,7 +587,7 @@ module safety_island_top #(
                 .m_axi_rresp   (m_axi_rresp_flat[mi*2 +: 2]),
                 .m_axi_rlast   (m_axi_rlast_flat[mi]),
                 .m_axi_rvalid  (m_axi_rvalid_flat[mi]),
-                .m_axi_rcheck  (m_axi_rcheck_flat[mi*8 +: 8]),
+                .m_axi_rcheck  (m_axi_rcheck_flat[mi*CRC_WIDTH +: CRC_WIDTH]),
                 .m_axi_rready  (m_axi_rready_flat[mi])
             );
         end
