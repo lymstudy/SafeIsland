@@ -1,0 +1,135 @@
+m255
+K4
+z2
+!s11f MIXED_VERSIONS
+13
+!s112 1.1
+!i10d 8192
+!i10e 25
+!i10f 100
+cModel Technology
+Z0 dD:/studydoc/competition/PIC/SafeIsland/rtl
+T_opt
+!s110 1782098188
+VTeibhO=ZPGgTV^;f;Me0W2
+04 26 4 work tb_safety_island_top_basic fast 0
+=1-04bf1b00bd6f-6a38a90c-f9-28cc
+o-quiet -auto_acc_if_foreign -work work
+Z1 tCvgOpt 0
+n@_opt
+OL;O;2020.4;71
+vaxi_master
+Z2 !s110 1782098186
+!i10b 1
+!s100 We6YXJ7n<6`kn^R8QgOcH0
+Z3 !s11b Dg1SIo80bB@j0V0VzS_@n1
+IX0J:UBWVh?B_S41d4L2ei0
+R0
+w1782095072
+8AXI/axi_master.v
+FAXI/axi_master.v
+!i122 19
+L0 3 301
+Z4 VDg1SIo80bB@j0V0VzS_@n1
+Z5 OL;L;2020.4;71
+r1
+!s85 0
+31
+Z6 !s108 1782098186.000000
+Z7 !s107 safety_island_top.v|safety_island_axi_config_slave.v|safety_island_core_logic.v|AXI/axi_master.v|
+Z8 !s90 -work|work|-f|safety_island_top.f|
+!i113 0
+Z9 o-work work -L mtiAvm -L mtiRnm -L mtiOvm -L mtiUvm -L mtiUPF -L infact
+R1
+vsafety_island_axi_config_slave
+R2
+!i10b 1
+!s100 _hKXT_g5GXaa:m=kWJge80
+R3
+IH]Whd0:I<AF=aa4;>MjNL3
+R0
+w1782097491
+8safety_island_axi_config_slave.v
+Fsafety_island_axi_config_slave.v
+!i122 19
+L0 3 498
+R4
+R5
+r1
+!s85 0
+31
+R6
+R7
+R8
+!i113 0
+R9
+R1
+vsafety_island_core_logic
+R2
+!i10b 1
+!s100 ?EclH6YA`1nIL15eB4=033
+R3
+Idm]kWW:z6Y`mXf3KMD<0A0
+R0
+w1782098178
+8safety_island_core_logic.v
+Fsafety_island_core_logic.v
+!i122 19
+L0 33 966
+R4
+R5
+r1
+!s85 0
+31
+R6
+R7
+R8
+!i113 0
+R9
+R1
+vsafety_island_top
+R2
+!i10b 1
+!s100 HH<Nd2Ng8CcCh3aV<n8HF3
+R3
+IG]]R_d`TMPhc^E:e_k8M`2
+R0
+w1782095357
+8safety_island_top.v
+Fsafety_island_top.v
+!i122 19
+L0 3 380
+R4
+R5
+r1
+!s85 0
+31
+R6
+R7
+R8
+!i113 0
+R9
+R1
+vtb_safety_island_top_basic
+R2
+!i10b 1
+!s100 Mgc0SiHQ>hAbFQckN0F^=3
+R3
+IE[:bZ2R`_:h3MnDi7KEoE3
+R0
+w1782098136
+8..\tb\tb_safety_island_top_basic.v
+F..\tb\tb_safety_island_top_basic.v
+!i122 20
+L0 3 434
+R4
+R5
+r1
+!s85 0
+31
+R6
+!s107 ..\tb\tb_safety_island_top_basic.v|
+!s90 -work|work|..\tb\tb_safety_island_top_basic.v|
+!i113 0
+R9
+R1
