@@ -1429,6 +1429,11 @@ end
 endtask
 
 initial begin
+`ifdef FSDB
+    $fsdbDumpfile("waves/fault_injection.fsdb");
+    $fsdbDumpvars(0, tb_safety_island_fault_injection);
+`endif
+
     clk = 1'b0;
     rst = 1'b1;
     total_cases = 0;

@@ -1557,6 +1557,10 @@ end
 endtask
 
 initial begin
+`ifdef FSDB
+    $fsdbDumpfile("waves/full.fsdb");
+    $fsdbDumpvars(0, tb_safety_island_top_full);
+`endif
 
     clk = 1'b0;
     rst = 1'b1;

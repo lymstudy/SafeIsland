@@ -9,7 +9,8 @@ LOG_DIR   := $(CURDIR)/logs
 VCS       := vcs
 VERDI     := verdi
 
-VCS_OPTS  := -full64 -sverilog -debug_access+all -kdb -timescale=1ns/1ps
+VCS_OPTS       := -full64 -sverilog -debug_access+all -kdb +define+FSDB -timescale=1ns/1ps
+VCS_BATCH_OPTS := -full64 -sverilog -debug_access+all -kdb +define+FSDB +define+FI_ARRAY_BIT_TARGETS -timescale=1ns/1ps
 
 FULL_TOP  := tb_safety_island_top_full
 FULL_TB   := $(TB_DIR)/tb_safety_island_top_full.v
@@ -26,7 +27,7 @@ FDET_TB   := $(TB_DIR)/tb_safety_island_fault_detector.v
 FDET_SIMV := $(BUILD_DIR)/simv_fdet
 FDET_FSDB := $(WAVE_DIR)/fault_detector.fsdb
 
-.PHONY: all dirs full full-comp full-run fault fault-comp fault-run fdet fdet-comp fdet-run regress verdi-full verdi-fault verdi-fdet clean
+.PHONY: all dirs full full-comp full-run fault fault-comp fault-run batch batch-comp batch-run fdet fdet-comp fdet-run regress verdi-full verdi-fault verdi-fdet clean
 
 all: regress
 
@@ -45,7 +46,7 @@ full-comp: dirs
 		-l $(LOG_DIR)/full_compile.log
 
 full-run:
-	$(FULL_SIMV) +FSDB=$(FULL_FSDB) -l $(LOG_DIR)/full_run.log
+	$(FULL_SIMV) -l $(LOG_DIR)/full_run.log
 
 # ── Fault injection ──
 fault: fault-comp fault-run
@@ -59,9 +60,23 @@ fault-comp: dirs
 		-l $(LOG_DIR)/fault_compile.log
 
 fault-run:
-	$(FAULT_SIMV) +FSDB=$(FAULT_FSDB) -l $(LOG_DIR)/fault_run.log
+	$(FAULT_SIMV) -l $(LOG_DIR)/fault_run.log
 
-# ── Fault detector unit test (NEW) ──
+# ── Fault injection batch (full bit sweep, 594 cases) ──
+batch: batch-comp batch-run
+
+batch-comp: dirs
+	$(VCS) $(VCS_BATCH_OPTS) \
+		-F $(RTL_F) \
+		$(FAULT_TB) \
+		-top $(FAULT_TOP) \
+		-o $(BUILD_DIR)/simv_batch \
+		-l $(LOG_DIR)/batch_compile.log
+
+batch-run:
+	$(BUILD_DIR)/simv_batch +BATCH_ALL -l $(LOG_DIR)/batch_run.log
+
+# ── Fault detector unit test ──
 fdet: fdet-comp fdet-run
 
 fdet-comp: dirs
@@ -73,7 +88,7 @@ fdet-comp: dirs
 		-l $(LOG_DIR)/fdet_compile.log
 
 fdet-run:
-	$(FDET_SIMV) +FSDB=$(FDET_FSDB) -l $(LOG_DIR)/fdet_run.log
+	$(FDET_SIMV) -l $(LOG_DIR)/fdet_run.log
 
 # ── Full regression (all test suites) ──
 regress: full fault fdet
@@ -89,4 +104,4 @@ verdi-fdet:
 
 clean:
 	rm -rf $(BUILD_DIR) $(WAVE_DIR) $(LOG_DIR)
-	rm -rf csrc simv simv.daidir *.daidir novas.* verdiLog ucli.key DVEfiles
+	rm -rf csrc simv simv.daidir *.daidir novas.* verdiLog ucli.key DVEfiles *fsdb*
