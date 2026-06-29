@@ -114,7 +114,7 @@ The following safety enhancements have been implemented to address AXI port inte
 - ✅ Design documents (failure model, test plan, requirements checklist, project plan)
 
 ### Remaining
-- 🟡 VCS fault_detector unit test: 3/18 fail (error code mapping), isolated from main modules
+- ✅ VCS fault_detector unit test: 18/18 PASS
 - 🟡 Code line coverage statistics
 - 🟡 Digital logic deep-combinational path equivalence argument (41/65 sites beyond force capability)
 - 🟢 Final submission package assembly
