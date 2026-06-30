@@ -1,0 +1,135 @@
+m255
+K4
+z2
+!s11f vlog 2020.4 2020.10, Oct 13 2020
+13
+!s112 1.1
+!i10d 8192
+!i10e 25
+!i10f 100
+cModel Technology
+Z0 dD:/studydoc/competition/PIC/SafeIsland/sim/modelsim
+T_opt
+!s110 1782120424
+VHfV^>nQ9UiTFKdhc2Ye4J3
+04 26 4 work tb_safety_island_top_basic fast 0
+=1-5084926986a1-6a38ffe7-32f-98a8
+o-quiet -auto_acc_if_foreign -work D:/studydoc/competition/PIC/SafeIsland/sim/out/safety_island_top_basic/work
+Z1 tCvgOpt 0
+n@_opt
+OL;O;2020.4;71
+vsafety_island_axi_config_slave
+Z2 !s110 1782120423
+!i10b 1
+!s100 ebY;Edo>`X>VZ5X4A:0T[3
+Z3 !s11b Dg1SIo80bB@j0V0VzS_@n1
+IFTWh36honnfa1ZCOaZ0Pg2
+Z4 dD:/studydoc/competition/PIC/SafeIsland/rtl
+w1782105799
+8safety_island_axi_config_slave.v
+Fsafety_island_axi_config_slave.v
+!i122 0
+L0 3 500
+Z5 VDg1SIo80bB@j0V0VzS_@n1
+Z6 OL;L;2020.4;71
+r1
+!s85 0
+31
+Z7 !s108 1782120423.000000
+Z8 !s107 safety_island_top.v|safety_island_axi_config_slave.v|safety_island_core_logic.v|safety_island_axi_read_engine.v|
+Z9 !s90 -work|D:/studydoc/competition/PIC/SafeIsland/sim/out/safety_island_top_basic/work|-f|safety_island_top.f|
+!i113 0
+Z10 o-work D:/studydoc/competition/PIC/SafeIsland/sim/out/safety_island_top_basic/work -L mtiAvm -L mtiRnm -L mtiOvm -L mtiUvm -L mtiUPF -L infact
+R1
+vsafety_island_axi_read_engine
+R2
+!i10b 1
+!s100 6MQfi3jQ=K]eVNLfgnmWm3
+R3
+I1R]JiRC:2lS>ck<T83=H<3
+R4
+w1782120294
+8safety_island_axi_read_engine.v
+Fsafety_island_axi_read_engine.v
+!i122 0
+L0 3 285
+R5
+R6
+r1
+!s85 0
+31
+R7
+R8
+R9
+!i113 0
+R10
+R1
+vsafety_island_core_logic
+R2
+!i10b 1
+!s100 ceGIXm[kO9ZI`XKVc4h`J2
+R3
+IM_ikIMX8@ScdFe6BYTnXn1
+R4
+w1782119316
+8safety_island_core_logic.v
+Fsafety_island_core_logic.v
+!i122 0
+L0 35 989
+R5
+R6
+r1
+!s85 0
+31
+R7
+R8
+R9
+!i113 0
+R10
+R1
+vsafety_island_top
+R2
+!i10b 1
+!s100 zRYZXlON3MAmgOH=_^C1a3
+R3
+ILlzb:ofG3W:RE]nMlRn212
+R4
+w1782120302
+8safety_island_top.v
+Fsafety_island_top.v
+!i122 0
+L0 3 403
+R5
+R6
+r1
+!s85 0
+31
+R7
+R8
+R9
+!i113 0
+R10
+R1
+vtb_safety_island_top_basic
+R2
+!i10b 1
+!s100 lDSTZe[GnSifUlI3n6]RT1
+R3
+IT7cYzMVSn6l5LMeJX5DzV3
+R0
+w1782120367
+8D:/studydoc/competition/PIC/SafeIsland/tb/tb_safety_island_top_basic.v
+FD:/studydoc/competition/PIC/SafeIsland/tb/tb_safety_island_top_basic.v
+!i122 1
+L0 3 462
+R5
+R6
+r1
+!s85 0
+31
+R7
+!s107 D:/studydoc/competition/PIC/SafeIsland/tb/tb_safety_island_top_basic.v|
+!s90 -work|D:/studydoc/competition/PIC/SafeIsland/sim/out/safety_island_top_basic/work|D:/studydoc/competition/PIC/SafeIsland/tb/tb_safety_island_top_basic.v|
+!i113 0
+R10
+R1

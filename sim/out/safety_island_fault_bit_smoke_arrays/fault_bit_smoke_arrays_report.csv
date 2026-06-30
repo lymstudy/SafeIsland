@@ -1,0 +1,5 @@
+fault_id,module,hierarchical_path,campaign_type,fault_kind,bit_index,name,result_type,result,cycles,error_code,fault_detect,safety_fault,latent_fault
+B0001_000,config_slave,dut.u_cfg.read_interval_inv[0],config_bit,cfg_read_interval_inv,0,cfg_read_interval_inv,config_bit,detected,2,11,1,0,1
+B0001_032,config_slave,dut.u_cfg.read_interval_inv[32],config_bit,cfg_read_interval_inv,32,cfg_read_interval_inv,config_bit,detected,2,11,1,0,1
+B0001_063,config_slave,dut.u_cfg.read_interval_inv[63],config_bit,cfg_read_interval_inv,63,cfg_read_interval_inv,config_bit,detected,2,11,1,0,1
+B0002_000,config_slave,dut.u_cfg.base_addr_inv_q[0][0],config_bit,cfg_base_addr_inv_q0,0,cfg_base_addr_inv_q0,config_bit,detected,2,11,1,0,1

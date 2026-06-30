@@ -1,0 +1,66 @@
+m255
+K4
+z2
+!s11f vlog 2020.4 2020.10, Oct 13 2020
+13
+!s112 1.1
+!i10d 8192
+!i10e 25
+!i10f 100
+cModel Technology
+Z0 dD:/studydoc/competition/PIC/SafeIsland/sim/modelsim/axi
+T_opt
+!s110 1782107622
+V5=_F`UPhE1TB=5lPKEGV62
+04 12 4 work tb_axi_slave fast 0
+=1-5084926986a1-6a38cde6-17f-7eb0
+o-quiet -auto_acc_if_foreign -work ../../out/axi_slave/run_work_1782107621_35624
+Z1 tCvgOpt 0
+n@_opt
+OL;O;2020.4;71
+vaxi_slave
+Z2 !s110 1782107621
+!i10b 1
+!s100 TY4B4N^z]HB>8:NSN0BT@3
+Z3 !s11b Dg1SIo80bB@j0V0VzS_@n1
+IhSRmnHlinzBbIIhaQ97o;0
+R0
+w1782095072
+8../../../rtl/AXI/axi_slave.v
+F../../../rtl/AXI/axi_slave.v
+!i122 0
+L0 3 292
+Z4 VDg1SIo80bB@j0V0VzS_@n1
+Z5 OL;L;2020.4;71
+r1
+!s85 0
+31
+Z6 !s108 1782107621.000000
+Z7 !s107 ../../../tb/axi/tb_axi_slave.v|../../../rtl/AXI/axi_slave.v|
+Z8 !s90 -work|../../out/axi_slave/run_work_1782107621_35624|../../../rtl/AXI/axi_slave.v|../../../tb/axi/tb_axi_slave.v|
+!i113 0
+Z9 o-work ../../out/axi_slave/run_work_1782107621_35624 -L mtiAvm -L mtiRnm -L mtiOvm -L mtiUvm -L mtiUPF -L infact
+R1
+vtb_axi_slave
+R2
+!i10b 1
+!s100 ^;L4adNGNaSYbC@MdEE>L3
+R3
+IJgY3IeZ9chaDWHEZSLe`d0
+R0
+w1782090435
+8../../../tb/axi/tb_axi_slave.v
+F../../../tb/axi/tb_axi_slave.v
+!i122 0
+L0 3 296
+R4
+R5
+r1
+!s85 0
+31
+R6
+R7
+R8
+!i113 0
+R9
+R1

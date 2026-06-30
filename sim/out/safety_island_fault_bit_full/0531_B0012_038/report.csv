@@ -1,0 +1,3 @@
+name,type,result,cycles,error_code,fault_detect,safety_fault,latent_fault
+read_engine_slot_accum_inv_q0,read_engine_bit,detected,1,0,0,1,1
+SUMMARY,total=1 corrected=0 detected=1 undetected=0 protection_rate=100%,,,,

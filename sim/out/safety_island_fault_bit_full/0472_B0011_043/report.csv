@@ -1,0 +1,3 @@
+name,type,result,cycles,error_code,fault_detect,safety_fault,latent_fault
+top_rsp_data_inv_q0,top_rsp_bit,detected,1,0,0,1,1
+SUMMARY,total=1 corrected=0 detected=1 undetected=0 protection_rate=100%,,,,

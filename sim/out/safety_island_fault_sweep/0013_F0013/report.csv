@@ -1,0 +1,3 @@
+name,type,result,cycles,error_code,fault_detect,safety_fault,latent_fault
+axi_read_timeout,port_interface,detected,1200,21,1,0,0
+SUMMARY,total=1 corrected=0 detected=1 undetected=0 protection_rate=100%,,,,

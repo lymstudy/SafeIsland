@@ -1,0 +1,3 @@
+name,type,result,cycles,error_code,fault_detect,safety_fault,latent_fault
+fd_fault_status_inv,fault_detector_bit,detected,2,50,0,1,1
+SUMMARY,total=1 corrected=0 detected=1 undetected=0 protection_rate=100%,,,,

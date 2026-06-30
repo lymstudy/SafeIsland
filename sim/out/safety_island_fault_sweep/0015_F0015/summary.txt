@@ -1,0 +1,2 @@
+FI_CASE: name=axi_rid_mismatch type=port_interface result=detected cycles=10 code=20
+FI_SUMMARY: total=1 corrected=0 detected=1 undetected=0 protection_rate=100%

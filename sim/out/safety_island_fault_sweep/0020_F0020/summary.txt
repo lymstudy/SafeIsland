@@ -1,0 +1,2 @@
+FI_CASE: name=kat_mismatch type=safety_self_test result=detected cycles=10 code=47
+FI_SUMMARY: total=1 corrected=0 detected=1 undetected=0 protection_rate=100%

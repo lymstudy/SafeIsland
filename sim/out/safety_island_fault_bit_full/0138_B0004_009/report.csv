@@ -1,0 +1,3 @@
+name,type,result,cycles,error_code,fault_detect,safety_fault,latent_fault
+cfg_mask_inv_q0,config_bit,detected,2,11,1,0,1
+SUMMARY,total=1 corrected=0 detected=1 undetected=0 protection_rate=100%,,,,

@@ -1,0 +1,181 @@
+m255
+K4
+z2
+!s11f vlog 2020.4 2020.10, Oct 13 2020
+13
+!s112 1.1
+!i10d 8192
+!i10e 25
+!i10f 100
+cModel Technology
+Z0 dD:/studydoc/competition/PIC/SafeIsland-main
+T_opt
+!s110 1782448955
+VE^RabW9[K5YL3DDX7bLFM2
+04 32 4 work tb_safety_island_fault_injection fast 0
+=1-5084926986a1-6a3e033a-250-72d8
+o-quiet -auto_acc_if_foreign -work D:/studydoc/competition/PIC/SafeIsland-main/sim/out/safety_island_fault_bit_smoke/work +acc
+Z1 tCvgOpt 0
+n@_opt
+OL;O;2020.4;71
+vsafety_island_axi_config_slave
+Z2 !s110 1782448952
+!i10b 1
+!s100 55KInUXAeFjdolMDLoV5e3
+Z3 !s11b Dg1SIo80bB@j0V0VzS_@n1
+ILCH:D_?K;fRZ>zJVCMfTl2
+Z4 dD:/studydoc/competition/PIC/SafeIsland-main/rtl
+w1782441814
+8safety_island_axi_config_slave.v
+Fsafety_island_axi_config_slave.v
+!i122 0
+L0 3 641
+Z5 VDg1SIo80bB@j0V0VzS_@n1
+Z6 OL;L;2020.4;71
+r1
+!s85 0
+31
+Z7 !s108 1782448952.000000
+Z8 !s107 safety_island_top.v|safety_island_heartbeat.v|safety_island_fault_detector.v|safety_island_axi_config_slave.v|safety_island_core_logic.v|safety_island_axi_read_engine.v|
+Z9 !s90 -work|D:/studydoc/competition/PIC/SafeIsland-main/sim/out/safety_island_fault_bit_smoke/work|-f|safety_island_top.f|
+!i113 0
+Z10 o-work D:/studydoc/competition/PIC/SafeIsland-main/sim/out/safety_island_fault_bit_smoke/work -L mtiAvm -L mtiRnm -L mtiOvm -L mtiUvm -L mtiUPF -L infact
+R1
+vsafety_island_axi_read_engine
+R2
+!i10b 1
+!s100 6bEcgKU14KH=Bla7;]P3b3
+R3
+ILz8aa=>j4hVUXIRP9kJ183
+R4
+w1782443520
+8safety_island_axi_read_engine.v
+Fsafety_island_axi_read_engine.v
+!i122 0
+L0 3 482
+R5
+R6
+r1
+!s85 0
+31
+R7
+R8
+R9
+!i113 0
+R10
+R1
+vsafety_island_core_logic
+R2
+!i10b 1
+!s100 Mg2M?P3e1?dcg?SB2og8W2
+R3
+IX[n2^Bg<gdi3j=ZOCCmOL3
+R4
+w1782442832
+8safety_island_core_logic.v
+Fsafety_island_core_logic.v
+!i122 0
+L0 43 1147
+R5
+R6
+r1
+!s85 0
+31
+R7
+R8
+R9
+!i113 0
+R10
+R1
+vsafety_island_fault_detector
+R2
+!i10b 1
+!s100 lL9Q`_Lg5zM]Y9Pa==WUG2
+R3
+I:zAn=Hmei0FIPS>hnDJ__1
+R4
+w1782442633
+8safety_island_fault_detector.v
+Fsafety_island_fault_detector.v
+!i122 0
+L0 26 435
+R5
+R6
+r1
+!s85 0
+31
+R7
+R8
+R9
+!i113 0
+R10
+R1
+vsafety_island_heartbeat
+R2
+!i10b 1
+!s100 <JbZz7LmV5mVl9hzSczaO0
+R3
+I3d7JK<WAd]`Ah_hlPRUh<0
+R4
+w1782441961
+8safety_island_heartbeat.v
+Fsafety_island_heartbeat.v
+!i122 0
+L0 16 122
+R5
+R6
+r1
+!s85 0
+31
+R7
+R8
+R9
+!i113 0
+R10
+R1
+vsafety_island_top
+R2
+!i10b 1
+!s100 C0FmeLH_WALF<_JifkEPM0
+R3
+Im]>oUZmg`Sim=Tk1H@mfl2
+R4
+w1782441920
+8safety_island_top.v
+Fsafety_island_top.v
+!i122 0
+L0 21 649
+R5
+R6
+r1
+!s85 0
+31
+R7
+R8
+R9
+!i113 0
+R10
+R1
+vtb_safety_island_fault_injection
+R2
+!i10b 1
+!s100 aC_5BQdXH@Gl[9=Um6kVA3
+R3
+II;JN[UGQzI0V<Ph6LzGOP3
+R0
+w1782448759
+8D:/studydoc/competition/PIC/SafeIsland-main/tb/tb_safety_island_fault_injection.v
+FD:/studydoc/competition/PIC/SafeIsland-main/tb/tb_safety_island_fault_injection.v
+!i122 1
+L0 3 1195
+R5
+R6
+r1
+!s85 0
+31
+R7
+!s107 D:/studydoc/competition/PIC/SafeIsland-main/tb/tb_safety_island_fault_injection.v|
+!s90 -work|D:/studydoc/competition/PIC/SafeIsland-main/sim/out/safety_island_fault_bit_smoke/work|D:/studydoc/competition/PIC/SafeIsland-main/tb/tb_safety_island_fault_injection.v|
+!i113 0
+R10
+R1

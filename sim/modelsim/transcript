@@ -1,0 +1,686 @@
+# do D:/studydoc/competition/PIC/SafeIsland-main/sim/modelsim/_phase12.do
+# Model Technology ModelSim SE-64 vmap 2020.4 Lib Mapping Utility 2020.10 Oct 13 2020
+# vmap work D:/studydoc/competition/PIC/SafeIsland-main/sim/out/safety_island_fault_injection/work 
+# Modifying modelsim.ini
+# reading D:/software/modelism/MODELISM/win64/../modelsim.ini
+# Model Technology ModelSim SE-64 vlog 2020.4 Compiler 2020.10 Oct 13 2020
+# Start time: 10:21:15 on Jun 29,2026
+# vlog -work D:/studydoc/competition/PIC/SafeIsland-main/sim/out/safety_island_fault_injection/work "+define+FI_ARRAY_BIT_TARGETS" -f safety_island_top.f 
+# -- Compiling module safety_island_axi_read_engine
+# -- Compiling module safety_island_core_logic
+# -- Compiling module safety_island_axi_config_slave
+# -- Compiling module safety_island_fault_detector
+# -- Compiling module safety_island_heartbeat
+# -- Compiling module safety_island_top
+# 
+# Top level modules:
+# 	safety_island_top
+# End time: 10:21:15 on Jun 29,2026, Elapsed time: 0:00:00
+# Errors: 0, Warnings: 0
+# reading modelsim.ini
+# Model Technology ModelSim SE-64 vlog 2020.4 Compiler 2020.10 Oct 13 2020
+# Start time: 10:21:15 on Jun 29,2026
+# vlog -work D:/studydoc/competition/PIC/SafeIsland-main/sim/out/safety_island_fault_injection/work "+define+FI_ARRAY_BIT_TARGETS" D:/studydoc/competition/PIC/SafeIsland-main/tb/tb_safety_island_fault_injection.v 
+# -- Compiling module tb_safety_island_fault_injection
+# 
+# Top level modules:
+# 	tb_safety_island_fault_injection
+# End time: 10:21:15 on Jun 29,2026, Elapsed time: 0:00:00
+# Errors: 0, Warnings: 0
+# vsim -lib D:/studydoc/competition/PIC/SafeIsland-main/sim/out/safety_island_fault_injection/work -voptargs="+acc" -c tb_safety_island_fault_injection "+BATCH_ALL" 
+# Start time: 10:21:15 on Jun 29,2026
+# ** Note: (vsim-3812) Design is being optimized...
+# ** Note: (vopt-143) Recognized 1 FSM in module "safety_island_axi_config_slave(fast)".
+# ** Note: (vopt-143) Recognized 1 FSM in module "safety_island_heartbeat(fast)".
+# //  ModelSim SE-64 2020.4 Oct 13 2020
+# //
+# //  Copyright 1991-2020 Mentor Graphics Corporation
+# //  All Rights Reserved.
+# //
+# //  ModelSim SE-64 and its associated documentation contain trade
+# //  secrets and commercial or financial information that are the property of
+# //  Mentor Graphics Corporation and are privileged, confidential,
+# //  and exempt from disclosure under the Freedom of Information Act,
+# //  5 U.S.C. Section 552. Furthermore, this information
+# //  is prohibited from disclosure under the Trade Secrets Act,
+# //  18 U.S.C. Section 1905.
+# //
+# Loading work.tb_safety_island_fault_injection(fast)
+# Loading work.safety_island_top(fast)
+# Loading work.safety_island_axi_config_slave(fast)
+# Loading work.safety_island_core_logic(fast)
+# Loading work.safety_island_fault_detector(fast)
+# Loading work.safety_island_heartbeat(fast)
+# Loading work.safety_island_axi_read_engine(fast)
+# Loading work.safety_island_axi_read_engine(fast__1)
+# ** Warning: (vsim-12070) Force of a variable select from a non-constant rhs may produce unexpected results.
+#    Time: 0 ps  Iteration: 0  Instance: /tb_safety_island_fault_injection File: D:/studydoc/competition/PIC/SafeIsland-main/tb/tb_safety_island_fault_injection.v Line: 1309
+# ** Warning: (vsim-12070) Force of a variable select from a non-constant rhs may produce unexpected results.
+#    Time: 0 ps  Iteration: 0  Instance: /tb_safety_island_fault_injection File: D:/studydoc/competition/PIC/SafeIsland-main/tb/tb_safety_island_fault_injection.v Line: 1012
+# ** Warning: (vsim-12070) Force of a variable select from a non-constant rhs may produce unexpected results.
+#    Time: 0 ps  Iteration: 0  Instance: /tb_safety_island_fault_injection File: D:/studydoc/competition/PIC/SafeIsland-main/tb/tb_safety_island_fault_injection.v Line: 995
+# ** Warning: (vsim-12070) Force of a variable select from a non-constant rhs may produce unexpected results.
+#    Time: 0 ps  Iteration: 0  Instance: /tb_safety_island_fault_injection File: D:/studydoc/competition/PIC/SafeIsland-main/tb/tb_safety_island_fault_injection.v Line: 891
+# ** Warning: (vsim-12070) Force of a variable select from a non-constant rhs may produce unexpected results.
+#    Time: 0 ps  Iteration: 0  Instance: /tb_safety_island_fault_injection File: D:/studydoc/competition/PIC/SafeIsland-main/tb/tb_safety_island_fault_injection.v Line: 874
+# ** Warning: (vsim-12070) Force of a variable select from a non-constant rhs may produce unexpected results.
+#    Time: 0 ps  Iteration: 0  Instance: /tb_safety_island_fault_injection File: D:/studydoc/competition/PIC/SafeIsland-main/tb/tb_safety_island_fault_injection.v Line: 857
+# ** Warning: (vsim-12070) Force of a variable select from a non-constant rhs may produce unexpected results.
+#    Time: 0 ps  Iteration: 0  Instance: /tb_safety_island_fault_injection File: D:/studydoc/competition/PIC/SafeIsland-main/tb/tb_safety_island_fault_injection.v Line: 840
+# FI_BATCH: starting full bit-level fault sweep
+# FI_BATCH_PHASE1: 22 baseline cases
+# FI_CASE: name=read_interval_inv type=config_register result=detected cycles=2 code=11
+# FI_CASE: name=base_addr_inv_q0 type=config_register result=detected cycles=2 code=11
+# FI_CASE: name=offset_inv_q0 type=config_register result=detected cycles=2 code=11
+# FI_CASE: name=mask_inv_q0 type=config_register result=detected cycles=2 code=11
+# FI_CASE: name=burst_type_inv_q0 type=config_register result=detected cycles=2 code=11
+# FI_CASE: name=entry_valid_inv_q0 type=config_register result=detected cycles=2 code=11
+# FI_CASE: name=expected_inv_q0 type=config_register result=detected cycles=2 code=11
+# FI_CASE: name=state_inv type=core_register result=detected cycles=2 code=41
+# FI_CASE: name=fault_or_accum_inv type=core_register result=detected cycles=2 code=43
+# FI_CASE: name=pending_wr_ptr type=core_register result=detected cycles=2 code=45
+# FI_CASE: name=pending_rd_ptr type=core_register result=detected cycles=2 code=45
+# FI_CASE: name=outstanding_count type=core_register result=detected cycles=2 code=44
+# FI_CASE: name=axi_read_timeout type=port_interface result=detected cycles=1200 code=21
+# FI_CASE: name=axi_rresp_error type=port_interface result=detected cycles=10 code=20
+# FI_CASE: name=axi_rid_mismatch type=port_interface result=detected cycles=10 code=20
+# FI_CASE: name=axi_rcheck_error type=port_interface result=detected cycles=10 code=20
+# FI_CASE: name=transient_state_inv type=transient result=detected cycles=0 code=41
+# FI_CASE: name=transient_fault_or_accum_inv type=transient result=detected cycles=0 code=43
+# FI_CASE: name=transient_config_shadow type=transient result=detected cycles=0 code=11
+# FI_CASE: name=kat_mismatch type=safety_self_test result=detected cycles=10 code=47
+# FI_CASE: name=tmr_double_fault type=core_register result=detected cycles=2 code=41
+# FI_CASE: name=e2e_crc16_mismatch type=port_interface result=detected cycles=10 code=20
+# FI_BATCH_PHASE2: full bit sweep on representative registers
+# FI_BATCH: cfg_read_interval_inv 64 bits
+# FI_CASE: name=cfg_read_interval_inv type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_read_interval_inv type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_read_interval_inv type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_read_interval_inv type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_read_interval_inv type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_read_interval_inv type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_read_interval_inv type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_read_interval_inv type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_read_interval_inv type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_read_interval_inv type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_read_interval_inv type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_read_interval_inv type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_read_interval_inv type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_read_interval_inv type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_read_interval_inv type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_read_interval_inv type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_read_interval_inv type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_read_interval_inv type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_read_interval_inv type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_read_interval_inv type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_read_interval_inv type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_read_interval_inv type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_read_interval_inv type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_read_interval_inv type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_read_interval_inv type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_read_interval_inv type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_read_interval_inv type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_read_interval_inv type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_read_interval_inv type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_read_interval_inv type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_read_interval_inv type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_read_interval_inv type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_read_interval_inv type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_read_interval_inv type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_read_interval_inv type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_read_interval_inv type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_read_interval_inv type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_read_interval_inv type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_read_interval_inv type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_read_interval_inv type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_read_interval_inv type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_read_interval_inv type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_read_interval_inv type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_read_interval_inv type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_read_interval_inv type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_read_interval_inv type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_read_interval_inv type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_read_interval_inv type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_read_interval_inv type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_read_interval_inv type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_read_interval_inv type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_read_interval_inv type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_read_interval_inv type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_read_interval_inv type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_read_interval_inv type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_read_interval_inv type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_read_interval_inv type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_read_interval_inv type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_read_interval_inv type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_read_interval_inv type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_read_interval_inv type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_read_interval_inv type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_read_interval_inv type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_read_interval_inv type=config_bit result=detected cycles=2 code=11
+# FI_BATCH: cfg_base_addr_inv_q0 32 bits
+# FI_CASE: name=cfg_base_addr_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_base_addr_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_base_addr_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_base_addr_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_base_addr_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_base_addr_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_base_addr_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_base_addr_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_base_addr_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_base_addr_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_base_addr_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_base_addr_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_base_addr_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_base_addr_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_base_addr_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_base_addr_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_base_addr_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_base_addr_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_base_addr_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_base_addr_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_base_addr_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_base_addr_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_base_addr_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_base_addr_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_base_addr_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_base_addr_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_base_addr_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_base_addr_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_base_addr_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_base_addr_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_base_addr_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_base_addr_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_BATCH: cfg_offset_inv_q0 32 bits
+# FI_CASE: name=cfg_offset_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_offset_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_offset_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_offset_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_offset_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_offset_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_offset_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_offset_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_offset_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_offset_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_offset_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_offset_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_offset_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_offset_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_offset_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_offset_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_offset_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_offset_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_offset_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_offset_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_offset_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_offset_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_offset_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_offset_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_offset_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_offset_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_offset_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_offset_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_offset_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_offset_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_offset_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_offset_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_BATCH: cfg_mask_inv_q0 64 bits
+# FI_CASE: name=cfg_mask_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_mask_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_mask_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_mask_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_mask_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_mask_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_mask_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_mask_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_mask_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_mask_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_mask_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_mask_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_mask_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_mask_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_mask_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_mask_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_mask_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_mask_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_mask_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_mask_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_mask_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_mask_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_mask_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_mask_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_mask_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_mask_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_mask_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_mask_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_mask_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_mask_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_mask_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_mask_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_mask_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_mask_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_mask_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_mask_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_mask_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_mask_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_mask_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_mask_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_mask_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_mask_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_mask_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_mask_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_mask_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_mask_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_mask_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_mask_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_mask_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_mask_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_mask_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_mask_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_mask_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_mask_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_mask_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_mask_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_mask_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_mask_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_mask_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_mask_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_mask_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_mask_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_mask_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_mask_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_BATCH: cfg_expected_inv_q0 64 bits
+# FI_CASE: name=cfg_expected_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_expected_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_expected_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_expected_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_expected_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_expected_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_expected_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_expected_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_expected_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_expected_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_expected_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_expected_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_expected_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_expected_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_expected_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_expected_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_expected_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_expected_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_expected_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_expected_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_expected_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_expected_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_expected_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_expected_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_expected_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_expected_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_expected_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_expected_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_expected_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_expected_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_expected_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_expected_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_expected_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_expected_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_expected_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_expected_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_expected_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_expected_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_expected_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_expected_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_expected_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_expected_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_expected_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_expected_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_expected_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_expected_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_expected_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_expected_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_expected_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_expected_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_expected_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_expected_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_expected_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_expected_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_expected_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_expected_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_expected_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_expected_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_expected_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_expected_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_expected_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_expected_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_expected_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_CASE: name=cfg_expected_inv_q0 type=config_bit result=detected cycles=2 code=11
+# FI_BATCH: core_state_inv 4 bits
+# FI_CASE: name=core_state_inv type=core_bit result=detected cycles=2 code=41
+# FI_CASE: name=core_state_inv type=core_bit result=detected cycles=2 code=41
+# FI_CASE: name=core_state_inv type=core_bit result=detected cycles=2 code=41
+# FI_CASE: name=core_state_inv type=core_bit result=detected cycles=2 code=41
+# FI_BATCH: core_fault_or_accum_inv 64 bits
+# FI_CASE: name=core_fault_or_accum_inv type=core_bit result=detected cycles=2 code=43
+# FI_CASE: name=core_fault_or_accum_inv type=core_bit result=detected cycles=2 code=43
+# FI_CASE: name=core_fault_or_accum_inv type=core_bit result=detected cycles=2 code=43
+# FI_CASE: name=core_fault_or_accum_inv type=core_bit result=detected cycles=2 code=43
+# FI_CASE: name=core_fault_or_accum_inv type=core_bit result=detected cycles=2 code=43
+# FI_CASE: name=core_fault_or_accum_inv type=core_bit result=detected cycles=2 code=43
+# FI_CASE: name=core_fault_or_accum_inv type=core_bit result=detected cycles=2 code=43
+# FI_CASE: name=core_fault_or_accum_inv type=core_bit result=detected cycles=2 code=43
+# FI_CASE: name=core_fault_or_accum_inv type=core_bit result=detected cycles=2 code=43
+# FI_CASE: name=core_fault_or_accum_inv type=core_bit result=detected cycles=2 code=43
+# FI_CASE: name=core_fault_or_accum_inv type=core_bit result=detected cycles=2 code=43
+# FI_CASE: name=core_fault_or_accum_inv type=core_bit result=detected cycles=2 code=43
+# FI_CASE: name=core_fault_or_accum_inv type=core_bit result=detected cycles=2 code=43
+# FI_CASE: name=core_fault_or_accum_inv type=core_bit result=detected cycles=2 code=43
+# FI_CASE: name=core_fault_or_accum_inv type=core_bit result=detected cycles=2 code=43
+# FI_CASE: name=core_fault_or_accum_inv type=core_bit result=detected cycles=2 code=43
+# FI_CASE: name=core_fault_or_accum_inv type=core_bit result=detected cycles=2 code=43
+# FI_CASE: name=core_fault_or_accum_inv type=core_bit result=detected cycles=2 code=43
+# FI_CASE: name=core_fault_or_accum_inv type=core_bit result=detected cycles=2 code=43
+# FI_CASE: name=core_fault_or_accum_inv type=core_bit result=detected cycles=2 code=43
+# FI_CASE: name=core_fault_or_accum_inv type=core_bit result=detected cycles=2 code=43
+# FI_CASE: name=core_fault_or_accum_inv type=core_bit result=detected cycles=2 code=43
+# FI_CASE: name=core_fault_or_accum_inv type=core_bit result=detected cycles=2 code=43
+# FI_CASE: name=core_fault_or_accum_inv type=core_bit result=detected cycles=2 code=43
+# FI_CASE: name=core_fault_or_accum_inv type=core_bit result=detected cycles=2 code=43
+# FI_CASE: name=core_fault_or_accum_inv type=core_bit result=detected cycles=2 code=43
+# FI_CASE: name=core_fault_or_accum_inv type=core_bit result=detected cycles=2 code=43
+# FI_CASE: name=core_fault_or_accum_inv type=core_bit result=detected cycles=2 code=43
+# FI_CASE: name=core_fault_or_accum_inv type=core_bit result=detected cycles=2 code=43
+# FI_CASE: name=core_fault_or_accum_inv type=core_bit result=detected cycles=2 code=43
+# FI_CASE: name=core_fault_or_accum_inv type=core_bit result=detected cycles=2 code=43
+# FI_CASE: name=core_fault_or_accum_inv type=core_bit result=detected cycles=2 code=43
+# FI_CASE: name=core_fault_or_accum_inv type=core_bit result=detected cycles=2 code=43
+# FI_CASE: name=core_fault_or_accum_inv type=core_bit result=detected cycles=2 code=43
+# FI_CASE: name=core_fault_or_accum_inv type=core_bit result=detected cycles=2 code=43
+# FI_CASE: name=core_fault_or_accum_inv type=core_bit result=detected cycles=2 code=43
+# FI_CASE: name=core_fault_or_accum_inv type=core_bit result=detected cycles=2 code=43
+# FI_CASE: name=core_fault_or_accum_inv type=core_bit result=detected cycles=2 code=43
+# FI_CASE: name=core_fault_or_accum_inv type=core_bit result=detected cycles=2 code=43
+# FI_CASE: name=core_fault_or_accum_inv type=core_bit result=detected cycles=2 code=43
+# FI_CASE: name=core_fault_or_accum_inv type=core_bit result=detected cycles=2 code=43
+# FI_CASE: name=core_fault_or_accum_inv type=core_bit result=detected cycles=2 code=43
+# FI_CASE: name=core_fault_or_accum_inv type=core_bit result=detected cycles=2 code=43
+# FI_CASE: name=core_fault_or_accum_inv type=core_bit result=detected cycles=2 code=43
+# FI_CASE: name=core_fault_or_accum_inv type=core_bit result=detected cycles=2 code=43
+# FI_CASE: name=core_fault_or_accum_inv type=core_bit result=detected cycles=2 code=43
+# FI_CASE: name=core_fault_or_accum_inv type=core_bit result=detected cycles=2 code=43
+# FI_CASE: name=core_fault_or_accum_inv type=core_bit result=detected cycles=2 code=43
+# FI_CASE: name=core_fault_or_accum_inv type=core_bit result=detected cycles=2 code=43
+# FI_CASE: name=core_fault_or_accum_inv type=core_bit result=detected cycles=2 code=43
+# FI_CASE: name=core_fault_or_accum_inv type=core_bit result=detected cycles=2 code=43
+# FI_CASE: name=core_fault_or_accum_inv type=core_bit result=detected cycles=2 code=43
+# FI_CASE: name=core_fault_or_accum_inv type=core_bit result=detected cycles=2 code=43
+# FI_CASE: name=core_fault_or_accum_inv type=core_bit result=detected cycles=2 code=43
+# FI_CASE: name=core_fault_or_accum_inv type=core_bit result=detected cycles=2 code=43
+# FI_CASE: name=core_fault_or_accum_inv type=core_bit result=detected cycles=2 code=43
+# FI_CASE: name=core_fault_or_accum_inv type=core_bit result=detected cycles=2 code=43
+# FI_CASE: name=core_fault_or_accum_inv type=core_bit result=detected cycles=2 code=43
+# FI_CASE: name=core_fault_or_accum_inv type=core_bit result=detected cycles=2 code=43
+# FI_CASE: name=core_fault_or_accum_inv type=core_bit result=detected cycles=2 code=43
+# FI_CASE: name=core_fault_or_accum_inv type=core_bit result=detected cycles=2 code=43
+# FI_CASE: name=core_fault_or_accum_inv type=core_bit result=detected cycles=2 code=43
+# FI_CASE: name=core_fault_or_accum_inv type=core_bit result=detected cycles=2 code=43
+# FI_CASE: name=core_fault_or_accum_inv type=core_bit result=detected cycles=2 code=43
+# FI_BATCH: fd_fault_status_inv 64 bits
+# FI_CASE: name=fd_fault_status_inv type=fault_detector_bit result=detected cycles=2 code=50
+# FI_CASE: name=fd_fault_status_inv type=fault_detector_bit result=detected cycles=2 code=50
+# FI_CASE: name=fd_fault_status_inv type=fault_detector_bit result=detected cycles=2 code=50
+# FI_CASE: name=fd_fault_status_inv type=fault_detector_bit result=detected cycles=2 code=50
+# FI_CASE: name=fd_fault_status_inv type=fault_detector_bit result=detected cycles=2 code=50
+# FI_CASE: name=fd_fault_status_inv type=fault_detector_bit result=detected cycles=2 code=50
+# FI_CASE: name=fd_fault_status_inv type=fault_detector_bit result=detected cycles=2 code=50
+# FI_CASE: name=fd_fault_status_inv type=fault_detector_bit result=detected cycles=2 code=50
+# FI_CASE: name=fd_fault_status_inv type=fault_detector_bit result=detected cycles=2 code=50
+# FI_CASE: name=fd_fault_status_inv type=fault_detector_bit result=detected cycles=2 code=50
+# FI_CASE: name=fd_fault_status_inv type=fault_detector_bit result=detected cycles=2 code=50
+# FI_CASE: name=fd_fault_status_inv type=fault_detector_bit result=detected cycles=2 code=50
+# FI_CASE: name=fd_fault_status_inv type=fault_detector_bit result=detected cycles=2 code=50
+# FI_CASE: name=fd_fault_status_inv type=fault_detector_bit result=detected cycles=2 code=50
+# FI_CASE: name=fd_fault_status_inv type=fault_detector_bit result=detected cycles=2 code=50
+# FI_CASE: name=fd_fault_status_inv type=fault_detector_bit result=detected cycles=2 code=50
+# FI_CASE: name=fd_fault_status_inv type=fault_detector_bit result=detected cycles=2 code=50
+# FI_CASE: name=fd_fault_status_inv type=fault_detector_bit result=detected cycles=2 code=50
+# FI_CASE: name=fd_fault_status_inv type=fault_detector_bit result=detected cycles=2 code=50
+# FI_CASE: name=fd_fault_status_inv type=fault_detector_bit result=detected cycles=2 code=50
+# FI_CASE: name=fd_fault_status_inv type=fault_detector_bit result=detected cycles=2 code=50
+# FI_CASE: name=fd_fault_status_inv type=fault_detector_bit result=detected cycles=2 code=50
+# FI_CASE: name=fd_fault_status_inv type=fault_detector_bit result=detected cycles=2 code=50
+# FI_CASE: name=fd_fault_status_inv type=fault_detector_bit result=detected cycles=2 code=50
+# FI_CASE: name=fd_fault_status_inv type=fault_detector_bit result=detected cycles=2 code=50
+# FI_CASE: name=fd_fault_status_inv type=fault_detector_bit result=detected cycles=2 code=50
+# FI_CASE: name=fd_fault_status_inv type=fault_detector_bit result=detected cycles=2 code=50
+# FI_CASE: name=fd_fault_status_inv type=fault_detector_bit result=detected cycles=2 code=50
+# FI_CASE: name=fd_fault_status_inv type=fault_detector_bit result=detected cycles=2 code=50
+# FI_CASE: name=fd_fault_status_inv type=fault_detector_bit result=detected cycles=2 code=50
+# FI_CASE: name=fd_fault_status_inv type=fault_detector_bit result=detected cycles=2 code=50
+# FI_CASE: name=fd_fault_status_inv type=fault_detector_bit result=detected cycles=2 code=50
+# FI_CASE: name=fd_fault_status_inv type=fault_detector_bit result=detected cycles=2 code=50
+# FI_CASE: name=fd_fault_status_inv type=fault_detector_bit result=detected cycles=2 code=50
+# FI_CASE: name=fd_fault_status_inv type=fault_detector_bit result=detected cycles=2 code=50
+# FI_CASE: name=fd_fault_status_inv type=fault_detector_bit result=detected cycles=2 code=50
+# FI_CASE: name=fd_fault_status_inv type=fault_detector_bit result=detected cycles=2 code=50
+# FI_CASE: name=fd_fault_status_inv type=fault_detector_bit result=detected cycles=2 code=50
+# FI_CASE: name=fd_fault_status_inv type=fault_detector_bit result=detected cycles=2 code=50
+# FI_CASE: name=fd_fault_status_inv type=fault_detector_bit result=detected cycles=2 code=50
+# FI_CASE: name=fd_fault_status_inv type=fault_detector_bit result=detected cycles=2 code=50
+# FI_CASE: name=fd_fault_status_inv type=fault_detector_bit result=detected cycles=2 code=50
+# FI_CASE: name=fd_fault_status_inv type=fault_detector_bit result=detected cycles=2 code=50
+# FI_CASE: name=fd_fault_status_inv type=fault_detector_bit result=detected cycles=2 code=50
+# FI_CASE: name=fd_fault_status_inv type=fault_detector_bit result=detected cycles=2 code=50
+# FI_CASE: name=fd_fault_status_inv type=fault_detector_bit result=detected cycles=2 code=50
+# FI_CASE: name=fd_fault_status_inv type=fault_detector_bit result=detected cycles=2 code=50
+# FI_CASE: name=fd_fault_status_inv type=fault_detector_bit result=detected cycles=2 code=50
+# FI_CASE: name=fd_fault_status_inv type=fault_detector_bit result=detected cycles=2 code=50
+# FI_CASE: name=fd_fault_status_inv type=fault_detector_bit result=detected cycles=2 code=50
+# FI_CASE: name=fd_fault_status_inv type=fault_detector_bit result=detected cycles=2 code=50
+# FI_CASE: name=fd_fault_status_inv type=fault_detector_bit result=detected cycles=2 code=50
+# FI_CASE: name=fd_fault_status_inv type=fault_detector_bit result=detected cycles=2 code=50
+# FI_CASE: name=fd_fault_status_inv type=fault_detector_bit result=detected cycles=2 code=50
+# FI_CASE: name=fd_fault_status_inv type=fault_detector_bit result=detected cycles=2 code=50
+# FI_CASE: name=fd_fault_status_inv type=fault_detector_bit result=detected cycles=2 code=50
+# FI_CASE: name=fd_fault_status_inv type=fault_detector_bit result=detected cycles=2 code=50
+# FI_CASE: name=fd_fault_status_inv type=fault_detector_bit result=detected cycles=2 code=50
+# FI_CASE: name=fd_fault_status_inv type=fault_detector_bit result=detected cycles=2 code=50
+# FI_CASE: name=fd_fault_status_inv type=fault_detector_bit result=detected cycles=2 code=50
+# FI_CASE: name=fd_fault_status_inv type=fault_detector_bit result=detected cycles=2 code=50
+# FI_CASE: name=fd_fault_status_inv type=fault_detector_bit result=detected cycles=2 code=50
+# FI_CASE: name=fd_fault_status_inv type=fault_detector_bit result=detected cycles=2 code=50
+# FI_CASE: name=fd_fault_status_inv type=fault_detector_bit result=detected cycles=2 code=50
+# FI_BATCH: fd_error_code_inv 8 bits
+# FI_CASE: name=fd_error_code_inv type=fault_detector_bit result=detected cycles=2 code=50
+# FI_CASE: name=fd_error_code_inv type=fault_detector_bit result=detected cycles=2 code=50
+# FI_CASE: name=fd_error_code_inv type=fault_detector_bit result=detected cycles=2 code=50
+# FI_CASE: name=fd_error_code_inv type=fault_detector_bit result=detected cycles=2 code=50
+# FI_CASE: name=fd_error_code_inv type=fault_detector_bit result=detected cycles=2 code=50
+# FI_CASE: name=fd_error_code_inv type=fault_detector_bit result=detected cycles=2 code=50
+# FI_CASE: name=fd_error_code_inv type=fault_detector_bit result=detected cycles=2 code=50
+# FI_CASE: name=fd_error_code_inv type=fault_detector_bit result=detected cycles=2 code=50
+# FI_BATCH: heartbeat_counter_inv 32 bits
+# FI_CASE: name=heartbeat_counter_inv type=heartbeat_bit result=detected cycles=2 code=00
+# FI_CASE: name=heartbeat_counter_inv type=heartbeat_bit result=detected cycles=2 code=00
+# FI_CASE: name=heartbeat_counter_inv type=heartbeat_bit result=detected cycles=2 code=00
+# FI_CASE: name=heartbeat_counter_inv type=heartbeat_bit result=detected cycles=2 code=00
+# FI_CASE: name=heartbeat_counter_inv type=heartbeat_bit result=detected cycles=2 code=00
+# FI_CASE: name=heartbeat_counter_inv type=heartbeat_bit result=detected cycles=2 code=00
+# FI_CASE: name=heartbeat_counter_inv type=heartbeat_bit result=detected cycles=2 code=00
+# FI_CASE: name=heartbeat_counter_inv type=heartbeat_bit result=detected cycles=2 code=00
+# FI_CASE: name=heartbeat_counter_inv type=heartbeat_bit result=detected cycles=2 code=00
+# FI_CASE: name=heartbeat_counter_inv type=heartbeat_bit result=detected cycles=2 code=00
+# FI_CASE: name=heartbeat_counter_inv type=heartbeat_bit result=detected cycles=2 code=00
+# FI_CASE: name=heartbeat_counter_inv type=heartbeat_bit result=detected cycles=2 code=00
+# FI_CASE: name=heartbeat_counter_inv type=heartbeat_bit result=detected cycles=2 code=00
+# FI_CASE: name=heartbeat_counter_inv type=heartbeat_bit result=detected cycles=2 code=00
+# FI_CASE: name=heartbeat_counter_inv type=heartbeat_bit result=detected cycles=2 code=00
+# FI_CASE: name=heartbeat_counter_inv type=heartbeat_bit result=detected cycles=2 code=00
+# FI_CASE: name=heartbeat_counter_inv type=heartbeat_bit result=detected cycles=2 code=00
+# FI_CASE: name=heartbeat_counter_inv type=heartbeat_bit result=detected cycles=2 code=00
+# FI_CASE: name=heartbeat_counter_inv type=heartbeat_bit result=detected cycles=2 code=00
+# FI_CASE: name=heartbeat_counter_inv type=heartbeat_bit result=detected cycles=2 code=00
+# FI_CASE: name=heartbeat_counter_inv type=heartbeat_bit result=detected cycles=2 code=00
+# FI_CASE: name=heartbeat_counter_inv type=heartbeat_bit result=detected cycles=2 code=00
+# FI_CASE: name=heartbeat_counter_inv type=heartbeat_bit result=detected cycles=2 code=00
+# FI_CASE: name=heartbeat_counter_inv type=heartbeat_bit result=detected cycles=2 code=00
+# FI_CASE: name=heartbeat_counter_inv type=heartbeat_bit result=detected cycles=2 code=00
+# FI_CASE: name=heartbeat_counter_inv type=heartbeat_bit result=detected cycles=2 code=00
+# FI_CASE: name=heartbeat_counter_inv type=heartbeat_bit result=detected cycles=2 code=00
+# FI_CASE: name=heartbeat_counter_inv type=heartbeat_bit result=detected cycles=2 code=00
+# FI_CASE: name=heartbeat_counter_inv type=heartbeat_bit result=detected cycles=2 code=00
+# FI_CASE: name=heartbeat_counter_inv type=heartbeat_bit result=detected cycles=2 code=00
+# FI_CASE: name=heartbeat_counter_inv type=heartbeat_bit result=detected cycles=2 code=00
+# FI_CASE: name=heartbeat_counter_inv type=heartbeat_bit result=detected cycles=2 code=00
+# FI_BATCH: top_rsp_data_inv_q0 64 bits
+# FI_CASE: name=top_rsp_data_inv_q0 type=top_rsp_bit result=detected cycles=1 code=00
+# FI_CASE: name=top_rsp_data_inv_q0 type=top_rsp_bit result=detected cycles=1 code=00
+# FI_CASE: name=top_rsp_data_inv_q0 type=top_rsp_bit result=detected cycles=1 code=00
+# FI_CASE: name=top_rsp_data_inv_q0 type=top_rsp_bit result=detected cycles=1 code=00
+# FI_CASE: name=top_rsp_data_inv_q0 type=top_rsp_bit result=detected cycles=1 code=00
+# FI_CASE: name=top_rsp_data_inv_q0 type=top_rsp_bit result=detected cycles=1 code=00
+# FI_CASE: name=top_rsp_data_inv_q0 type=top_rsp_bit result=detected cycles=1 code=00
+# FI_CASE: name=top_rsp_data_inv_q0 type=top_rsp_bit result=detected cycles=1 code=00
+# FI_CASE: name=top_rsp_data_inv_q0 type=top_rsp_bit result=detected cycles=1 code=00
+# FI_CASE: name=top_rsp_data_inv_q0 type=top_rsp_bit result=detected cycles=1 code=00
+# FI_CASE: name=top_rsp_data_inv_q0 type=top_rsp_bit result=detected cycles=1 code=00
+# FI_CASE: name=top_rsp_data_inv_q0 type=top_rsp_bit result=detected cycles=1 code=00
+# FI_CASE: name=top_rsp_data_inv_q0 type=top_rsp_bit result=detected cycles=1 code=00
+# FI_CASE: name=top_rsp_data_inv_q0 type=top_rsp_bit result=detected cycles=1 code=00
+# FI_CASE: name=top_rsp_data_inv_q0 type=top_rsp_bit result=detected cycles=1 code=00
+# FI_CASE: name=top_rsp_data_inv_q0 type=top_rsp_bit result=detected cycles=1 code=00
+# FI_CASE: name=top_rsp_data_inv_q0 type=top_rsp_bit result=detected cycles=1 code=00
+# FI_CASE: name=top_rsp_data_inv_q0 type=top_rsp_bit result=detected cycles=1 code=00
+# FI_CASE: name=top_rsp_data_inv_q0 type=top_rsp_bit result=detected cycles=1 code=00
+# FI_CASE: name=top_rsp_data_inv_q0 type=top_rsp_bit result=detected cycles=1 code=00
+# FI_CASE: name=top_rsp_data_inv_q0 type=top_rsp_bit result=detected cycles=1 code=00
+# FI_CASE: name=top_rsp_data_inv_q0 type=top_rsp_bit result=detected cycles=1 code=00
+# FI_CASE: name=top_rsp_data_inv_q0 type=top_rsp_bit result=detected cycles=1 code=00
+# FI_CASE: name=top_rsp_data_inv_q0 type=top_rsp_bit result=detected cycles=1 code=00
+# FI_CASE: name=top_rsp_data_inv_q0 type=top_rsp_bit result=detected cycles=1 code=00
+# FI_CASE: name=top_rsp_data_inv_q0 type=top_rsp_bit result=detected cycles=1 code=00
+# FI_CASE: name=top_rsp_data_inv_q0 type=top_rsp_bit result=detected cycles=1 code=00
+# FI_CASE: name=top_rsp_data_inv_q0 type=top_rsp_bit result=detected cycles=1 code=00
+# FI_CASE: name=top_rsp_data_inv_q0 type=top_rsp_bit result=detected cycles=1 code=00
+# FI_CASE: name=top_rsp_data_inv_q0 type=top_rsp_bit result=detected cycles=1 code=00
+# FI_CASE: name=top_rsp_data_inv_q0 type=top_rsp_bit result=detected cycles=1 code=00
+# FI_CASE: name=top_rsp_data_inv_q0 type=top_rsp_bit result=detected cycles=1 code=00
+# FI_CASE: name=top_rsp_data_inv_q0 type=top_rsp_bit result=detected cycles=1 code=00
+# FI_CASE: name=top_rsp_data_inv_q0 type=top_rsp_bit result=detected cycles=1 code=00
+# FI_CASE: name=top_rsp_data_inv_q0 type=top_rsp_bit result=detected cycles=1 code=00
+# FI_CASE: name=top_rsp_data_inv_q0 type=top_rsp_bit result=detected cycles=1 code=00
+# FI_CASE: name=top_rsp_data_inv_q0 type=top_rsp_bit result=detected cycles=1 code=00
+# FI_CASE: name=top_rsp_data_inv_q0 type=top_rsp_bit result=detected cycles=1 code=00
+# FI_CASE: name=top_rsp_data_inv_q0 type=top_rsp_bit result=detected cycles=1 code=00
+# FI_CASE: name=top_rsp_data_inv_q0 type=top_rsp_bit result=detected cycles=1 code=00
+# FI_CASE: name=top_rsp_data_inv_q0 type=top_rsp_bit result=detected cycles=1 code=00
+# FI_CASE: name=top_rsp_data_inv_q0 type=top_rsp_bit result=detected cycles=1 code=00
+# FI_CASE: name=top_rsp_data_inv_q0 type=top_rsp_bit result=detected cycles=1 code=00
+# FI_CASE: name=top_rsp_data_inv_q0 type=top_rsp_bit result=detected cycles=1 code=00
+# FI_CASE: name=top_rsp_data_inv_q0 type=top_rsp_bit result=detected cycles=1 code=00
+# FI_CASE: name=top_rsp_data_inv_q0 type=top_rsp_bit result=detected cycles=1 code=00
+# FI_CASE: name=top_rsp_data_inv_q0 type=top_rsp_bit result=detected cycles=1 code=00
+# FI_CASE: name=top_rsp_data_inv_q0 type=top_rsp_bit result=detected cycles=1 code=00
+# FI_CASE: name=top_rsp_data_inv_q0 type=top_rsp_bit result=detected cycles=1 code=00
+# FI_CASE: name=top_rsp_data_inv_q0 type=top_rsp_bit result=detected cycles=1 code=00
+# FI_CASE: name=top_rsp_data_inv_q0 type=top_rsp_bit result=detected cycles=1 code=00
+# FI_CASE: name=top_rsp_data_inv_q0 type=top_rsp_bit result=detected cycles=1 code=00
+# FI_CASE: name=top_rsp_data_inv_q0 type=top_rsp_bit result=detected cycles=1 code=00
+# FI_CASE: name=top_rsp_data_inv_q0 type=top_rsp_bit result=detected cycles=1 code=00
+# FI_CASE: name=top_rsp_data_inv_q0 type=top_rsp_bit result=detected cycles=1 code=00
+# FI_CASE: name=top_rsp_data_inv_q0 type=top_rsp_bit result=detected cycles=1 code=00
+# FI_CASE: name=top_rsp_data_inv_q0 type=top_rsp_bit result=detected cycles=1 code=00
+# FI_CASE: name=top_rsp_data_inv_q0 type=top_rsp_bit result=detected cycles=1 code=00
+# FI_CASE: name=top_rsp_data_inv_q0 type=top_rsp_bit result=detected cycles=1 code=00
+# FI_CASE: name=top_rsp_data_inv_q0 type=top_rsp_bit result=detected cycles=1 code=00
+# FI_CASE: name=top_rsp_data_inv_q0 type=top_rsp_bit result=detected cycles=1 code=00
+# FI_CASE: name=top_rsp_data_inv_q0 type=top_rsp_bit result=detected cycles=1 code=00
+# FI_CASE: name=top_rsp_data_inv_q0 type=top_rsp_bit result=detected cycles=1 code=00
+# FI_CASE: name=top_rsp_data_inv_q0 type=top_rsp_bit result=detected cycles=1 code=00
+# FI_BATCH: read_engine_slot_accum_inv_q0 64 bits
+# FI_CASE: name=read_engine_slot_accum_inv_q0 type=read_engine_bit result=detected cycles=1 code=00
+# FI_CASE: name=read_engine_slot_accum_inv_q0 type=read_engine_bit result=detected cycles=1 code=00
+# FI_CASE: name=read_engine_slot_accum_inv_q0 type=read_engine_bit result=detected cycles=1 code=00
+# FI_CASE: name=read_engine_slot_accum_inv_q0 type=read_engine_bit result=detected cycles=1 code=00
+# FI_CASE: name=read_engine_slot_accum_inv_q0 type=read_engine_bit result=detected cycles=1 code=00
+# FI_CASE: name=read_engine_slot_accum_inv_q0 type=read_engine_bit result=detected cycles=1 code=00
+# FI_CASE: name=read_engine_slot_accum_inv_q0 type=read_engine_bit result=detected cycles=1 code=00
+# FI_CASE: name=read_engine_slot_accum_inv_q0 type=read_engine_bit result=detected cycles=1 code=00
+# FI_CASE: name=read_engine_slot_accum_inv_q0 type=read_engine_bit result=detected cycles=1 code=00
+# FI_CASE: name=read_engine_slot_accum_inv_q0 type=read_engine_bit result=detected cycles=1 code=00
+# FI_CASE: name=read_engine_slot_accum_inv_q0 type=read_engine_bit result=detected cycles=1 code=00
+# FI_CASE: name=read_engine_slot_accum_inv_q0 type=read_engine_bit result=detected cycles=1 code=00
+# FI_CASE: name=read_engine_slot_accum_inv_q0 type=read_engine_bit result=detected cycles=1 code=00
+# FI_CASE: name=read_engine_slot_accum_inv_q0 type=read_engine_bit result=detected cycles=1 code=00
+# FI_CASE: name=read_engine_slot_accum_inv_q0 type=read_engine_bit result=detected cycles=1 code=00
+# FI_CASE: name=read_engine_slot_accum_inv_q0 type=read_engine_bit result=detected cycles=1 code=00
+# FI_CASE: name=read_engine_slot_accum_inv_q0 type=read_engine_bit result=detected cycles=1 code=00
+# FI_CASE: name=read_engine_slot_accum_inv_q0 type=read_engine_bit result=detected cycles=1 code=00
+# FI_CASE: name=read_engine_slot_accum_inv_q0 type=read_engine_bit result=detected cycles=1 code=00
+# FI_CASE: name=read_engine_slot_accum_inv_q0 type=read_engine_bit result=detected cycles=1 code=00
+# FI_CASE: name=read_engine_slot_accum_inv_q0 type=read_engine_bit result=detected cycles=1 code=00
+# FI_CASE: name=read_engine_slot_accum_inv_q0 type=read_engine_bit result=detected cycles=1 code=00
+# FI_CASE: name=read_engine_slot_accum_inv_q0 type=read_engine_bit result=detected cycles=1 code=00
+# FI_CASE: name=read_engine_slot_accum_inv_q0 type=read_engine_bit result=detected cycles=1 code=00
+# FI_CASE: name=read_engine_slot_accum_inv_q0 type=read_engine_bit result=detected cycles=1 code=00
+# FI_CASE: name=read_engine_slot_accum_inv_q0 type=read_engine_bit result=detected cycles=1 code=00
+# FI_CASE: name=read_engine_slot_accum_inv_q0 type=read_engine_bit result=detected cycles=1 code=00
+# FI_CASE: name=read_engine_slot_accum_inv_q0 type=read_engine_bit result=detected cycles=1 code=00
+# FI_CASE: name=read_engine_slot_accum_inv_q0 type=read_engine_bit result=detected cycles=1 code=00
+# FI_CASE: name=read_engine_slot_accum_inv_q0 type=read_engine_bit result=detected cycles=1 code=00
+# FI_CASE: name=read_engine_slot_accum_inv_q0 type=read_engine_bit result=detected cycles=1 code=00
+# FI_CASE: name=read_engine_slot_accum_inv_q0 type=read_engine_bit result=detected cycles=1 code=00
+# FI_CASE: name=read_engine_slot_accum_inv_q0 type=read_engine_bit result=detected cycles=1 code=00
+# FI_CASE: name=read_engine_slot_accum_inv_q0 type=read_engine_bit result=detected cycles=1 code=00
+# FI_CASE: name=read_engine_slot_accum_inv_q0 type=read_engine_bit result=detected cycles=1 code=00
+# FI_CASE: name=read_engine_slot_accum_inv_q0 type=read_engine_bit result=detected cycles=1 code=00
+# FI_CASE: name=read_engine_slot_accum_inv_q0 type=read_engine_bit result=detected cycles=1 code=00
+# FI_CASE: name=read_engine_slot_accum_inv_q0 type=read_engine_bit result=detected cycles=1 code=00
+# FI_CASE: name=read_engine_slot_accum_inv_q0 type=read_engine_bit result=detected cycles=1 code=00
+# FI_CASE: name=read_engine_slot_accum_inv_q0 type=read_engine_bit result=detected cycles=1 code=00
+# FI_CASE: name=read_engine_slot_accum_inv_q0 type=read_engine_bit result=detected cycles=1 code=00
+# FI_CASE: name=read_engine_slot_accum_inv_q0 type=read_engine_bit result=detected cycles=1 code=00
+# FI_CASE: name=read_engine_slot_accum_inv_q0 type=read_engine_bit result=detected cycles=1 code=00
+# FI_CASE: name=read_engine_slot_accum_inv_q0 type=read_engine_bit result=detected cycles=1 code=00
+# FI_CASE: name=read_engine_slot_accum_inv_q0 type=read_engine_bit result=detected cycles=1 code=00
+# FI_CASE: name=read_engine_slot_accum_inv_q0 type=read_engine_bit result=detected cycles=1 code=00
+# FI_CASE: name=read_engine_slot_accum_inv_q0 type=read_engine_bit result=detected cycles=1 code=00
+# FI_CASE: name=read_engine_slot_accum_inv_q0 type=read_engine_bit result=detected cycles=1 code=00
+# FI_CASE: name=read_engine_slot_accum_inv_q0 type=read_engine_bit result=detected cycles=1 code=00
+# FI_CASE: name=read_engine_slot_accum_inv_q0 type=read_engine_bit result=detected cycles=1 code=00
+# FI_CASE: name=read_engine_slot_accum_inv_q0 type=read_engine_bit result=detected cycles=1 code=00
+# FI_CASE: name=read_engine_slot_accum_inv_q0 type=read_engine_bit result=detected cycles=1 code=00
+# FI_CASE: name=read_engine_slot_accum_inv_q0 type=read_engine_bit result=detected cycles=1 code=00
+# FI_CASE: name=read_engine_slot_accum_inv_q0 type=read_engine_bit result=detected cycles=1 code=00
+# FI_CASE: name=read_engine_slot_accum_inv_q0 type=read_engine_bit result=detected cycles=1 code=00
+# FI_CASE: name=read_engine_slot_accum_inv_q0 type=read_engine_bit result=detected cycles=1 code=00
+# FI_CASE: name=read_engine_slot_accum_inv_q0 type=read_engine_bit result=detected cycles=1 code=00
+# FI_CASE: name=read_engine_slot_accum_inv_q0 type=read_engine_bit result=detected cycles=1 code=00
+# FI_CASE: name=read_engine_slot_accum_inv_q0 type=read_engine_bit result=detected cycles=1 code=00
+# FI_CASE: name=read_engine_slot_accum_inv_q0 type=read_engine_bit result=detected cycles=1 code=00
+# FI_CASE: name=read_engine_slot_accum_inv_q0 type=read_engine_bit result=detected cycles=1 code=00
+# FI_CASE: name=read_engine_slot_accum_inv_q0 type=read_engine_bit result=detected cycles=1 code=00
+# FI_CASE: name=read_engine_slot_accum_inv_q0 type=read_engine_bit result=detected cycles=1 code=00
+# FI_CASE: name=read_engine_slot_accum_inv_q0 type=read_engine_bit result=detected cycles=1 code=00
+# FI_BATCH_PHASE2b: digital logic fault path sweep
+# FI_CASE: name=dig_crc_compare_corrupt type=digital_logic_crc result=detected cycles=1 code=00
+# FI_CASE: name=dig_response_decode type=igital_logic_resp_decode result=detected cycles=0 code=48
+# FI_CASE: name=dig_error_code_priority type=digital_logic_priority result=detected cycles=0 code=48
+# FI_CASE: name=dig_heartbeat_internal type=digital_logic_hb result=detected cycles=0 code=48
+# FI_CASE: name=dig_fd_event_shadow type=digital_logic_fd result=detected cycles=0 code=48
+# FI_CASE: name=dig_accum_shadow_comparator type=digital_logic_shadow result=detected cycles=0 code=48
+# FI_CASE: name=dig_kat_shadow type=digital_logic_kat_shadow result=detected cycles=2 code=11
+# FI_CASE: name=dig_scan_trigger type=digital_logic_scan result=detected cycles=2 code=12
+# FI_CASE: name=dig_slot_ptr_oob type=digital_logic_slot result=detected cycles=2 code=45
+# FI_CASE: name=dig_slot_age_timeout type=digital_logic_slot result=detected cycles=1 code=00
+# FI_CASE: name=dig_entry4_shadow type=digital_logic_data result=detected cycles=2 code=11
+# FI_CASE: name=dig_illegal_entry type=digital_logic_cfg result=detected cycles=2 code=11
+# FI_CASE: name=dig_outstanding_mismatch type=digital_logic_slot result=detected cycles=2 code=44
+# FI_CASE: name=dig_cmd_ready_stall type=digital_logic_slot result=detected cycles=1 code=00
+# FI_CASE: name=dig_fsm_illegal_state type=digital_logic_fsm result=detected cycles=2 code=41
+# FI_CASE: name=dig_current_index_oob type=digital_logic_core result=detected cycles=2 code=42
+# FI_BATCH: sweep complete (Phase 3 array entry sweep handled by TCL driver)
+# FI_SUMMARY: total=594 corrected=0 detected=594 undetected=0 protection_rate=100%
+# PASS: safety_island fault injection campaign completed
+# ** Note: $finish    : D:/studydoc/competition/PIC/SafeIsland-main/tb/tb_safety_island_fault_injection.v(1547)
+#    Time: 243055 ns  Iteration: 1  Instance: /tb_safety_island_fault_injection
+# End time: 10:21:19 on Jun 29,2026, Elapsed time: 0:00:04
+# Errors: 0, Warnings: 7

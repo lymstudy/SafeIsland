@@ -1,0 +1,2 @@
+FI_CASE: name=cfg_base_addr_inv_q0 type=config_bit result=detected cycles=2 code=11
+FI_SUMMARY: total=1 corrected=0 detected=1 undetected=0 protection_rate=100%
