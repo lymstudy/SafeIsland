@@ -1,0 +1,2 @@
+FI_CASE: name=core_fault_or_accum_inv type=core_bit result=detected cycles=2 code=43
+FI_SUMMARY: total=1 corrected=0 detected=1 undetected=0 protection_rate=100%

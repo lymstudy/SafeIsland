@@ -1,0 +1,2 @@
+FI_CASE: name=top_rsp_data_inv_q0 type=top_rsp_bit result=detected cycles=1 code=00
+FI_SUMMARY: total=1 corrected=0 detected=1 undetected=0 protection_rate=100%

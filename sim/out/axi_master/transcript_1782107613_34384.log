@@ -1,0 +1,33 @@
+# Model Technology ModelSim SE-64 vlog 2020.4 Compiler 2020.10 Oct 13 2020
+# Start time: 13:53:33 on Jun 22,2026
+# vlog -work ../../out/axi_master/run_work_1782107613_34384 ../../../tb/axi/axi_slave_mem_model.v ../../../rtl/AXI/axi_master.v ../../../tb/axi/tb_axi_master.v 
+# -- Compiling module axi_slave_mem_model
+# -- Compiling module axi_master
+# -- Compiling module tb_axi_master
+# 
+# Top level modules:
+# 	tb_axi_master
+# End time: 13:53:33 on Jun 22,2026, Elapsed time: 0:00:00
+# Errors: 0, Warnings: 0
+# vsim -lib ../../out/axi_master/run_work_1782107613_34384 tb_axi_master 
+# Start time: 13:53:33 on Jun 22,2026
+# ** Note: (vsim-3812) Design is being optimized...
+# //  ModelSim SE-64 2020.4 Oct 13 2020
+# //
+# //  Copyright 1991-2020 Mentor Graphics Corporation
+# //  All Rights Reserved.
+# //
+# //  ModelSim SE-64 and its associated documentation contain trade
+# //  secrets and commercial or financial information that are the property of
+# //  Mentor Graphics Corporation and are privileged, confidential,
+# //  and exempt from disclosure under the Freedom of Information Act,
+# //  5 U.S.C. Section 552. Furthermore, this information
+# //  is prohibited from disclosure under the Trade Secrets Act,
+# //  18 U.S.C. Section 1905.
+# //
+# Loading work.tb_axi_master(fast)
+# PASS: AXI master full test completed
+# ** Note: $finish    : ../../../tb/axi/tb_axi_master.v(339)
+#    Time: 715 ns  Iteration: 1  Instance: /tb_axi_master
+# End time: 13:53:35 on Jun 22,2026, Elapsed time: 0:00:02
+# Errors: 0, Warnings: 0

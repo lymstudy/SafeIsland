@@ -1,0 +1,2 @@
+fault_id,module,hierarchical_path,campaign_type,fault_kind,bit_index,name,result_type,result,cycles,error_code,fault_detect,safety_fault,latent_fault
+F0001,config_slave,dut.u_cfg.read_interval_inv,stuck_at_0,,,read_interval_inv,config_register,detected,2,11,1,0,1

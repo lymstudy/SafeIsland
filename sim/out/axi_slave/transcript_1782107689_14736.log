@@ -1,0 +1,34 @@
+# Model Technology ModelSim SE-64 vlog 2020.4 Compiler 2020.10 Oct 13 2020
+# Start time: 13:54:49 on Jun 22,2026
+# vlog -work ../../out/axi_slave/run_work_1782107689_14736 ../../../rtl/AXI/axi_slave.v ../../../tb/axi/tb_axi_slave.v 
+# -- Compiling module axi_slave
+# -- Compiling module tb_axi_slave
+# 
+# Top level modules:
+# 	tb_axi_slave
+# End time: 13:54:49 on Jun 22,2026, Elapsed time: 0:00:00
+# Errors: 0, Warnings: 0
+# vsim -lib ../../out/axi_slave/run_work_1782107689_14736 -voptargs="+acc" tb_axi_slave 
+# Start time: 13:54:49 on Jun 22,2026
+# ** Note: (vsim-3812) Design is being optimized...
+# ** Note: (vopt-143) Recognized 1 FSM in module "axi_slave(fast)".
+# //  ModelSim SE-64 2020.4 Oct 13 2020
+# //
+# //  Copyright 1991-2020 Mentor Graphics Corporation
+# //  All Rights Reserved.
+# //
+# //  ModelSim SE-64 and its associated documentation contain trade
+# //  secrets and commercial or financial information that are the property of
+# //  Mentor Graphics Corporation and are privileged, confidential,
+# //  and exempt from disclosure under the Freedom of Information Act,
+# //  5 U.S.C. Section 552. Furthermore, this information
+# //  is prohibited from disclosure under the Trade Secrets Act,
+# //  18 U.S.C. Section 1905.
+# //
+# Loading work.tb_axi_slave(fast)
+# Loading work.axi_slave(fast)
+# PASS: AXI slave full test completed
+# ** Note: $finish    : ../../../tb/axi/tb_axi_slave.v(296)
+#    Time: 600 ns  Iteration: 1  Instance: /tb_axi_slave
+# End time: 13:54:51 on Jun 22,2026, Elapsed time: 0:00:02
+# Errors: 0, Warnings: 0
