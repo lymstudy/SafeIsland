@@ -188,8 +188,12 @@ reg [DATA_W-1:0] kat_mask_inv;
 
 integer flat_m;
 integer flat_idx;
-integer shadow_m;
-integer shadow_idx;
+integer shadow_m_a;
+integer shadow_idx_a;
+integer shadow_m_b;
+integer shadow_idx_b;
+integer shadow_m_c;
+integer shadow_idx_c;
 integer read_m;
 integer read_e;
 integer read_idx;
@@ -210,7 +214,10 @@ wire [DATA_W-1:0] write_data_comb;
 wire [(DATA_W/8)-1:0] write_strb_comb;
 wire write_last_comb;
 
-reg shadow_error_comb;
+(* DONT_TOUCH = "TRUE" *) reg shadow_error_comb_a;
+(* DONT_TOUCH = "TRUE" *) reg shadow_error_comb_b;
+(* DONT_TOUCH = "TRUE" *) reg shadow_error_comb_c;
+wire shadow_error_comb;
 reg [DATA_W-1:0] read_data_comb;
 reg [1:0] read_resp_comb;
 reg [1:0] write_resp_comb;
@@ -219,6 +226,14 @@ reg [DATA_W-1:0] merged_write;
 assign cfg_valid        = cfg_locked_r;
 assign cfg_locked       = cfg_locked_r;
 assign cfg_illegal      = cfg_illegal_r;
+wire cfg_shadow_error_voted;
+wire cfg_shadow_error_tmr_err;
+
+tmr_voter #(1) u_cfg_shadow_tmr (
+    .a(shadow_error_comb_a), .b(shadow_error_comb_b), .c(shadow_error_comb_c),
+    .voted(cfg_shadow_error_voted), .mismatch(cfg_shadow_error_tmr_err)
+);
+assign shadow_error_comb = cfg_shadow_error_voted | cfg_shadow_error_tmr_err;
 assign cfg_shadow_error = shadow_error_comb;
 
 assign aw_fire = s_axi_awvalid & s_axi_awready;
@@ -290,34 +305,96 @@ always @* begin
 end
 
 always @* begin
-    shadow_error_comb = (enable_inv != ~enable) |
+    shadow_error_comb_a = (enable_inv != ~enable) |
                         (cfg_locked_inv != ~cfg_locked_r) |
                         (cfg_illegal_inv != ~cfg_illegal_r) |
                         (read_interval_inv != ~read_interval);
 
     if (cfg_locked_tmr_mismatch || cfg_illegal_tmr_mismatch || enable_tmr_mismatch)
-        shadow_error_comb = 1'b1;
+        shadow_error_comb_a = 1'b1;
 
-    for (shadow_m = 0; shadow_m < NUM_MASTERS; shadow_m = shadow_m + 1) begin
-        if (base_addr_inv_q[shadow_m] != ~base_addr_q[shadow_m])
-            shadow_error_comb = 1'b1;
+    for (shadow_m_a = 0; shadow_m_a < NUM_MASTERS; shadow_m_a = shadow_m_a + 1) begin
+        if (base_addr_inv_q[shadow_m_a] != ~base_addr_q[shadow_m_a])
+            shadow_error_comb_a = 1'b1;
     end
 
-    for (shadow_idx = 0; shadow_idx < NUM_MASTERS*NUM_ENTRIES; shadow_idx = shadow_idx + 1) begin
-        if ((offset_inv_q[shadow_idx] != ~offset_q[shadow_idx]) ||
-            (mask_inv_q[shadow_idx] != ~mask_q[shadow_idx]) ||
-            (burst_type_inv_q[shadow_idx] != ~burst_type_q[shadow_idx]) ||
-            (burst_len_inv_q[shadow_idx] != ~burst_len_q[shadow_idx]) ||
-            (entry_valid_inv_q[shadow_idx] != ~entry_valid_q[shadow_idx]) ||
-            (expected_inv_q[shadow_idx] != ~expected_q[shadow_idx]))
-            shadow_error_comb = 1'b1;
+    for (shadow_idx_a = 0; shadow_idx_a < NUM_MASTERS*NUM_ENTRIES; shadow_idx_a = shadow_idx_a + 1) begin
+        if ((offset_inv_q[shadow_idx_a] != ~offset_q[shadow_idx_a]) ||
+            (mask_inv_q[shadow_idx_a] != ~mask_q[shadow_idx_a]) ||
+            (burst_type_inv_q[shadow_idx_a] != ~burst_type_q[shadow_idx_a]) ||
+            (burst_len_inv_q[shadow_idx_a] != ~burst_len_q[shadow_idx_a]) ||
+            (entry_valid_inv_q[shadow_idx_a] != ~entry_valid_q[shadow_idx_a]) ||
+            (expected_inv_q[shadow_idx_a] != ~expected_q[shadow_idx_a]))
+            shadow_error_comb_a = 1'b1;
     end
 
     if ((kat_enable_inv != ~kat_enable) ||
         (kat_addr_inv != ~kat_addr) ||
         (kat_expected_inv != ~kat_expected) ||
         (kat_mask_inv != ~kat_mask))
-        shadow_error_comb = 1'b1;
+        shadow_error_comb_a = 1'b1;
+end
+
+always @* begin
+    shadow_error_comb_b = (enable_inv != ~enable) |
+                        (cfg_locked_inv != ~cfg_locked_r) |
+                        (cfg_illegal_inv != ~cfg_illegal_r) |
+                        (read_interval_inv != ~read_interval);
+
+    if (cfg_locked_tmr_mismatch || cfg_illegal_tmr_mismatch || enable_tmr_mismatch)
+        shadow_error_comb_b = 1'b1;
+
+    for (shadow_m_b = 0; shadow_m_b < NUM_MASTERS; shadow_m_b = shadow_m_b + 1) begin
+        if (base_addr_inv_q[shadow_m_b] != ~base_addr_q[shadow_m_b])
+            shadow_error_comb_b = 1'b1;
+    end
+
+    for (shadow_idx_b = 0; shadow_idx_b < NUM_MASTERS*NUM_ENTRIES; shadow_idx_b = shadow_idx_b + 1) begin
+        if ((offset_inv_q[shadow_idx_b] != ~offset_q[shadow_idx_b]) ||
+            (mask_inv_q[shadow_idx_b] != ~mask_q[shadow_idx_b]) ||
+            (burst_type_inv_q[shadow_idx_b] != ~burst_type_q[shadow_idx_b]) ||
+            (burst_len_inv_q[shadow_idx_b] != ~burst_len_q[shadow_idx_b]) ||
+            (entry_valid_inv_q[shadow_idx_b] != ~entry_valid_q[shadow_idx_b]) ||
+            (expected_inv_q[shadow_idx_b] != ~expected_q[shadow_idx_b]))
+            shadow_error_comb_b = 1'b1;
+    end
+
+    if ((kat_enable_inv != ~kat_enable) ||
+        (kat_addr_inv != ~kat_addr) ||
+        (kat_expected_inv != ~kat_expected) ||
+        (kat_mask_inv != ~kat_mask))
+        shadow_error_comb_b = 1'b1;
+end
+
+always @* begin
+    shadow_error_comb_c = (enable_inv != ~enable) |
+                        (cfg_locked_inv != ~cfg_locked_r) |
+                        (cfg_illegal_inv != ~cfg_illegal_r) |
+                        (read_interval_inv != ~read_interval);
+
+    if (cfg_locked_tmr_mismatch || cfg_illegal_tmr_mismatch || enable_tmr_mismatch)
+        shadow_error_comb_c = 1'b1;
+
+    for (shadow_m_c = 0; shadow_m_c < NUM_MASTERS; shadow_m_c = shadow_m_c + 1) begin
+        if (base_addr_inv_q[shadow_m_c] != ~base_addr_q[shadow_m_c])
+            shadow_error_comb_c = 1'b1;
+    end
+
+    for (shadow_idx_c = 0; shadow_idx_c < NUM_MASTERS*NUM_ENTRIES; shadow_idx_c = shadow_idx_c + 1) begin
+        if ((offset_inv_q[shadow_idx_c] != ~offset_q[shadow_idx_c]) ||
+            (mask_inv_q[shadow_idx_c] != ~mask_q[shadow_idx_c]) ||
+            (burst_type_inv_q[shadow_idx_c] != ~burst_type_q[shadow_idx_c]) ||
+            (burst_len_inv_q[shadow_idx_c] != ~burst_len_q[shadow_idx_c]) ||
+            (entry_valid_inv_q[shadow_idx_c] != ~entry_valid_q[shadow_idx_c]) ||
+            (expected_inv_q[shadow_idx_c] != ~expected_q[shadow_idx_c]))
+            shadow_error_comb_c = 1'b1;
+    end
+
+    if ((kat_enable_inv != ~kat_enable) ||
+        (kat_addr_inv != ~kat_addr) ||
+        (kat_expected_inv != ~kat_expected) ||
+        (kat_mask_inv != ~kat_mask))
+        shadow_error_comb_c = 1'b1;
 end
 
 always @* begin

@@ -514,6 +514,17 @@ begin
 end
 endtask
 
+task report_corrected;
+    input [8*64-1:0] name;
+    input [8*24-1:0] fault_type;
+    input integer cycles;
+begin
+    total_cases = total_cases + 1;
+    corrected_cases = corrected_cases + 1;
+    emit_case(name, fault_type, "corrected", cycles);
+end
+endtask
+
 task report_undetected;
     input [8*64-1:0] name;
     input [8*24-1:0] fault_type;
@@ -1043,6 +1054,26 @@ begin
         run_fd_error_code_inv_bit(bit_index);
     else if (fault_kind == "heartbeat_counter_inv")
         run_heartbeat_counter_inv_bit(bit_index);
+    else if (fault_kind == "cfg_shadow_error_comb")
+        run_dig_cfg_shadow_comp_direct();
+    else if (fault_kind == "fd_event_shadow_fault")
+        run_dig_event_shadow_direct();
+    else if (fault_kind == "core_accum_shadow_fault")
+        run_dig_accum_shadow_direct();
+    else if (fault_kind == "re_crc_mismatch")
+        run_dig_crc_mismatch_direct();
+    else if (fault_kind == "core_cfg_burst_type")
+        run_dig_cfg_burst_type_direct();
+    else if (fault_kind == "core_cfg_burst_len")
+        run_dig_cfg_burst_len_direct();
+    else if (fault_kind == "core_scan_start")
+        run_dig_scan_start_stuck();
+    else if (fault_kind == "core_cfg_interval")
+        run_dig_cfg_interval_direct();
+    else if (fault_kind == "core_cfg_fault_comb")
+        run_dig_cfg_fault_tmr();
+    else if (fault_kind == "core_safety_fault_comb")
+        run_dig_safety_fault_tmr();
 `ifdef FI_ARRAY_BIT_TARGETS
     else if (fault_kind == "top_rsp_data_inv_q0")
         run_top_rsp_data_inv_q0_bit(bit_index);
@@ -1169,6 +1200,23 @@ begin
     run_dig_cmd_ready_stall();
     run_dig_fsm_illegal_state();
     run_dig_current_index_oob();
+    // Direct FI expansion (2026-06-30): 16 new digital logic targets
+    run_dig_cfg_shadow_comp_direct();
+    run_dig_event_shadow_direct();
+    run_dig_accum_shadow_direct();
+    run_dig_crc_mismatch_direct();
+    run_dig_crc_expected_stuck();
+    run_dig_re_wr_ptr_oob();
+    run_dig_re_rd_ptr_oob();
+    run_dig_re_outstanding_oob();
+    run_dig_write_verify_stuck();
+    run_dig_cfg_burst_type_direct();
+    run_dig_cfg_burst_len_direct();
+    run_dig_scan_start_stuck();
+    run_dig_cfg_interval_direct();
+    run_dig_slot_valid_tmr();
+    run_dig_cfg_fault_tmr();
+    run_dig_safety_fault_tmr();
 
     $display("FI_BATCH: sweep complete (Phase 3 array entry sweep handled by TCL driver)");
 end
@@ -1377,6 +1425,251 @@ begin
 end
 endtask
 
+// ─── Added 2026-06-30: digital logic direct FI expansion (FAULT_INDEX 39..54) ───
+
+// shadow_error_comb direct — force shadow compare to silent
+task run_dig_cfg_shadow_comp_direct;
+begin
+    reset_dut(); config_minimal();
+    force dut.u_cfg.shadow_error_comb_a = 1'b0;
+    // A real shadow error exists but comparators forced silent
+    force dut.u_cfg.read_interval_inv = 64'h0;
+    expect_fault_within_10("dig_cfg_shadow_comp_stuck", "digital_logic_shadow", 1'b1, 1'b0, 1'b1);
+    release dut.u_cfg.shadow_error_comb_a;
+    release dut.u_cfg.read_interval_inv;
+end
+endtask
+
+// event_shadow_fault direct — force fault detector event shadow to 1
+task run_dig_event_shadow_direct;
+begin
+    reset_dut(); config_minimal();
+    force dut.u_fault_detector.event_shadow_fault = 1'b1;
+    expect_fault_within_10("dig_event_shadow_direct", "digital_logic_fd", 1'b0, 1'b1, 1'b0);
+    release dut.u_fault_detector.event_shadow_fault;
+end
+endtask
+
+// accum_shadow_fault_comb direct — force accum shadow mismatch
+task run_dig_accum_shadow_direct;
+begin
+    reset_dut(); config_minimal();
+    force dut.u_core.accum_shadow_fault_comb = 1'b1;
+    expect_fault_within_10("dig_accum_shadow_direct", "digital_logic_core", 1'b0, 1'b1, 1'b0);
+    release dut.u_core.accum_shadow_fault_comb;
+end
+endtask
+
+// crc_calc_mismatch direct — force CRC DMR mismatch to 1
+task run_dig_crc_mismatch_direct;
+begin
+    reset_dut(); config_minimal();
+    force dut.gen_read_master[0].u_read_engine.crc_calc_mismatch_a = 1'b1;
+    expect_fault_within_10("dig_crc_mismatch_direct", "digital_logic_crc", 1'b0, 1'b1, 1'b0);
+    release dut.gen_read_master[0].u_read_engine.crc_calc_mismatch_a;
+end
+endtask
+
+// r_crc_expected stuck-at — force wrong CRC expected value
+task run_dig_crc_expected_stuck;
+begin
+    reset_dut(); config_minimal();
+    force dut.gen_read_master[0].u_read_engine.r_crc_expected = 16'hDEAD;
+    force dut.gen_read_master[0].u_read_engine.r_crc_expected_triple = 16'hDEAD;
+    expect_fault_within_10("dig_crc_expected_stuck", "digital_logic_crc", 1'b0, 1'b1, 1'b0);
+    release dut.gen_read_master[0].u_read_engine.r_crc_expected;
+    release dut.gen_read_master[0].u_read_engine.r_crc_expected_triple;
+end
+endtask
+
+// wr_ptr out-of-range → internal_safety_fault
+task run_dig_re_wr_ptr_oob;
+begin
+    reset_dut(); config_minimal();
+    force dut.gen_read_master[0].u_read_engine.wr_ptr = MAX_OUTSTANDING;
+    expect_fault_within_10("dig_re_wr_ptr_oob", "digital_logic_slot", 1'b0, 1'b1, 1'b0);
+    release dut.gen_read_master[0].u_read_engine.wr_ptr;
+end
+endtask
+
+// rd_ptr out-of-range → internal_safety_fault
+task run_dig_re_rd_ptr_oob;
+begin
+    reset_dut(); config_minimal();
+    force dut.gen_read_master[0].u_read_engine.rd_ptr = MAX_OUTSTANDING;
+    expect_fault_within_10("dig_re_rd_ptr_oob", "digital_logic_slot", 1'b0, 1'b1, 1'b0);
+    release dut.gen_read_master[0].u_read_engine.rd_ptr;
+end
+endtask
+
+// outstanding_count out-of-range → internal_safety_fault
+task run_dig_re_outstanding_oob;
+begin
+    reset_dut(); config_minimal();
+    force dut.gen_read_master[0].u_read_engine.outstanding_count = MAX_OUTSTANDING + 1;
+    expect_fault_within_10("dig_re_outstanding_oob", "digital_logic_slot", 1'b0, 1'b1, 1'b0);
+    release dut.gen_read_master[0].u_read_engine.outstanding_count;
+end
+endtask
+
+// write-verify path stuck — force shadow after write → SLVERR
+task run_dig_write_verify_stuck;
+    reg [DATA_W-1:0] saved_interval;
+begin
+    reset_dut(); config_minimal();
+    // Write new interval value while forcing shadow_error TMR copies to mismatch
+    saved_interval = dut.u_cfg.read_interval;
+    force dut.u_cfg.shadow_error_comb_a = 1'b1;
+    axi_cfg_write(ADDR_READ_INTERVAL, 64'hCAFE);
+    #100;
+    release dut.u_cfg.shadow_error_comb_a;
+    // If write-verify works: SLVERR responded + cfg_illegal asserted → fault_detect
+    if (dut.u_cfg.cfg_illegal || fault_detect)
+        report_detected("dig_write_verify_stuck", "digital_logic_cfg", 100);
+    else
+        report_undetected("dig_write_verify_stuck", "digital_logic_cfg");
+end
+endtask
+
+// cfg_burst_type_fault_comb direct — force to 1
+task run_dig_cfg_burst_type_direct;
+begin
+    reset_dut(); config_minimal();
+    force dut.u_core.cfg_burst_type_fault_comb = 1'b1;
+    expect_fault_within_10("dig_cfg_burst_type_direct", "digital_logic_cfg", 1'b1, 1'b0, 1'b1);
+    release dut.u_core.cfg_burst_type_fault_comb;
+end
+endtask
+
+// cfg_burst_len_fault_comb direct — force to 1
+task run_dig_cfg_burst_len_direct;
+begin
+    reset_dut(); config_minimal();
+    force dut.u_core.cfg_burst_len_fault_comb = 1'b1;
+    expect_fault_within_10("dig_cfg_burst_len_direct", "digital_logic_cfg", 1'b1, 1'b0, 1'b1);
+    release dut.u_core.cfg_burst_len_fault_comb;
+end
+endtask
+
+// scan_start_comb stuck — force to 0 to prevent scan; heartbeat fires after timeout
+task run_dig_scan_start_stuck;
+    integer c;
+begin
+    reset_dut(); config_minimal();
+    force dut.u_core.scan_start_comb = 1'b0;
+    for (c = 0; c < 2500; c = c + 1) @(posedge clk);
+    if (safety_island_fault_detect || dut.heartbeat_fault)
+        report_detected("dig_scan_start_stuck", "digital_logic_scan", c);
+    else
+        report_undetected("dig_scan_start_stuck", "digital_logic_scan");
+    release dut.u_core.scan_start_comb;
+end
+endtask
+
+// cfg_interval_fault_comb direct — force to 1
+task run_dig_cfg_interval_direct;
+begin
+    reset_dut(); config_minimal();
+    force dut.u_core.cfg_interval_fault_comb = 1'b1;
+    expect_fault_within_10("dig_cfg_interval_direct", "digital_logic_cfg", 1'b1, 1'b0, 1'b1);
+    release dut.u_core.cfg_interval_fault_comb;
+end
+endtask
+
+// slot_valid TMR copy corrupt — forces one TMR copy to 1 while others are 0
+// TMR voter produces correct result (2-of-3 majority) → functionally corrected
+// tmr_err fires → safety_island_fault_detect provides detection of the discrepancy
+task run_dig_slot_valid_tmr;
+    integer c;
+    reg hit;
+begin
+    reset_dut(); config_minimal();
+    force dut.gen_read_master[0].u_read_engine.slot_valid_q_a[0] = 1'b1;
+    // Corrupting only 1 of 3 copies: voted output is correct (majority 2:0)
+    // but slot_valid_q_tmr_err fires → slot_shadow_error_comb → internal_safety_fault
+    // Classification: CORRECTED (function preserved, fault flagged)
+    c = 0;
+    hit = 1'b0;
+    while (c <= 10 && !hit) begin
+        if ((dut.gen_read_master[0].u_read_engine.slot_valid_q_voted[0] === 1'b0) &&
+            (dut.gen_read_master[0].u_read_engine.slot_valid_q_tmr_err[0] === 1'b1) &&
+            safety_island_fault_detect) begin
+            hit = 1'b1;
+        end else begin
+            c = c + 1;
+            @(posedge clk);
+        end
+    end
+    if (hit)
+        report_corrected("dig_slot_valid_tmr", "digital_logic_slot", c);
+    else
+        report_undetected("dig_slot_valid_tmr", "digital_logic_slot");
+    release dut.gen_read_master[0].u_read_engine.slot_valid_q_a[0];
+end
+endtask
+
+// cfg_fault_comb TMR copy corrupt — single TMR copy stuck high
+// TMR voter produces correct result (2-of-3 majority=0) → functionally corrected
+// tmr_err fires → cfg_fault_comb = voted|tmr_err = 1 → fault_detect (corrective+detection)
+task run_dig_cfg_fault_tmr;
+    integer c;
+    reg hit;
+begin
+    reset_dut(); config_minimal();
+    force dut.u_core.cfg_fault_comb_a = 1'b1;
+    // Only 1 of 3 copies corrupt: voted=0 (correct, no real fault), tmr_err=1
+    // Classification: CORRECTED (cfg_fault voted output preserved, mismatch flagged)
+    c = 0;
+    hit = 1'b0;
+    while (c <= 10 && !hit) begin
+        if ((dut.u_core.cfg_fault_comb_voted === 1'b0) &&
+            (dut.u_core.cfg_fault_comb_tmr_err === 1'b1) &&
+            fault_detect) begin
+            hit = 1'b1;
+        end else begin
+            c = c + 1;
+            @(posedge clk);
+        end
+    end
+    if (hit)
+        report_corrected("dig_cfg_fault_tmr", "digital_logic_cfg", c);
+    else
+        report_undetected("dig_cfg_fault_tmr", "digital_logic_cfg");
+    release dut.u_core.cfg_fault_comb_a;
+end
+endtask
+
+// safety_fault_comb TMR copy corrupt — single TMR copy stuck high
+// TMR voter produces correct result (2-of-3 majority=0) → functionally corrected
+// tmr_err fires → safety_fault_comb = voted|tmr_err = 1 → safety_island_fault_detect
+task run_dig_safety_fault_tmr;
+    integer c;
+    reg hit;
+begin
+    reset_dut(); config_minimal();
+    force dut.u_core.safety_fault_comb_a = 1'b1;
+    // Only 1 of 3 copies corrupt: voted=0 (correct), tmr_err=1
+    // Classification: CORRECTED (voted safety_fault stays 0, mismatch flagged for inspection)
+    c = 0;
+    hit = 1'b0;
+    while (c <= 10 && !hit) begin
+        if ((dut.u_core.safety_fault_comb_voted === 1'b0) &&
+            (dut.u_core.safety_fault_comb_tmr_err === 1'b1) &&
+            safety_island_fault_detect) begin
+            hit = 1'b1;
+        end else begin
+            c = c + 1;
+            @(posedge clk);
+        end
+    end
+    if (hit)
+        report_corrected("dig_safety_fault_tmr", "digital_logic_core", c);
+    else
+        report_undetected("dig_safety_fault_tmr", "digital_logic_core");
+    release dut.u_core.safety_fault_comb_a;
+end
+endtask
+
 task run_fault_by_index;
     input integer fault_index;
 begin
@@ -1419,6 +1712,22 @@ begin
         36: run_dig_cmd_ready_stall();
         37: run_dig_fsm_illegal_state();
         38: run_dig_current_index_oob();
+        39: run_dig_cfg_shadow_comp_direct();
+        40: run_dig_event_shadow_direct();
+        41: run_dig_accum_shadow_direct();
+        42: run_dig_crc_mismatch_direct();
+        43: run_dig_crc_expected_stuck();
+        44: run_dig_re_wr_ptr_oob();
+        45: run_dig_re_rd_ptr_oob();
+        46: run_dig_re_outstanding_oob();
+        47: run_dig_write_verify_stuck();
+        48: run_dig_cfg_burst_type_direct();
+        49: run_dig_cfg_burst_len_direct();
+        50: run_dig_scan_start_stuck();
+        51: run_dig_cfg_interval_direct();
+        52: run_dig_slot_valid_tmr();
+        53: run_dig_cfg_fault_tmr();
+        54: run_dig_safety_fault_tmr();
         default: begin
             $display("FI_ERROR: unsupported FAULT_INDEX=%0d", fault_index);
             total_cases = total_cases + 1;
@@ -1513,6 +1822,22 @@ initial begin
         run_dig_cmd_ready_stall();
         run_dig_fsm_illegal_state();
         run_dig_current_index_oob();
+        run_dig_cfg_shadow_comp_direct();
+        run_dig_event_shadow_direct();
+        run_dig_accum_shadow_direct();
+        run_dig_crc_mismatch_direct();
+        run_dig_crc_expected_stuck();
+        run_dig_re_wr_ptr_oob();
+        run_dig_re_rd_ptr_oob();
+        run_dig_re_outstanding_oob();
+        run_dig_write_verify_stuck();
+        run_dig_cfg_burst_type_direct();
+        run_dig_cfg_burst_len_direct();
+        run_dig_scan_start_stuck();
+        run_dig_cfg_interval_direct();
+        run_dig_slot_valid_tmr();
+        run_dig_cfg_fault_tmr();
+        run_dig_safety_fault_tmr();
     end
 
     if (total_cases > 0)

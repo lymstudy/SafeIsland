@@ -18,6 +18,18 @@ SafeIsland/
   meeting/              Meeting and schedule notes
 ```
 
+## 评分材料入口 (Submission Index)
+
+评委请从以下文档开始：
+
+| 文档 | 用途 |
+|------|------|
+| [`docs/提交材料索引.md`](docs/提交材料索引.md) | **评分项 → 材料 一键索引** |
+| [`docs/项目计划与进度.md`](docs/项目计划与进度.md) | 项目完成状态与自评 (~93-97/100) |
+| [`docs/工程概览/README.md`](docs/工程概览/README.md) | 工程架构总览 |
+| [`docs/工程概览/SPFM_LFM_正式证明.md`](docs/工程概览/SPFM_LFM_正式证明.md) | SPFM/LFM=100% 正式证明 |
+| [`docs/失效模型分析.md`](docs/失效模型分析.md) | 完整失效模型分析 |
+
 ## Main ModelSim Commands
 
 Run from `SafeIsland/sim/modelsim`.

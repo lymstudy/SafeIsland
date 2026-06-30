@@ -34,6 +34,17 @@ TARGETS = [
         "read_engine_bit",
         True,
     ),
+    # New digital logic direct FI targets (2026-06-30)
+    ("B0013", "config_slave", "dut.u_cfg.shadow_error_comb_a", "cfg_shadow_error_comb", 1, "digital_bit", False),
+    ("B0014", "fault_detector", "dut.u_fault_detector.event_shadow_fault", "fd_event_shadow_fault", 1, "digital_bit", False),
+    ("B0015", "core_logic", "dut.u_core.accum_shadow_fault_comb", "core_accum_shadow_fault", 1, "digital_bit", False),
+    ("B0016", "axi_read_engine", "dut.gen_read_master[0].u_read_engine.crc_calc_mismatch_a", "re_crc_mismatch", 1, "digital_bit", False),
+    ("B0017", "core_logic", "dut.u_core.cfg_burst_type_fault_comb", "core_cfg_burst_type", 1, "digital_bit", False),
+    ("B0018", "core_logic", "dut.u_core.cfg_burst_len_fault_comb", "core_cfg_burst_len", 1, "digital_bit", False),
+    ("B0019", "core_logic", "dut.u_core.scan_start_comb", "core_scan_start", 1, "digital_bit", False),
+    ("B0020", "core_logic", "dut.u_core.cfg_interval_fault_comb", "core_cfg_interval", 1, "digital_bit", False),
+    ("B0021", "core_logic", "dut.u_core.cfg_fault_comb_a", "core_cfg_fault_comb", 1, "digital_bit", False),
+    ("B0022", "core_logic", "dut.u_core.safety_fault_comb_a", "core_safety_fault_comb", 1, "digital_bit", False),
 ]
 
 

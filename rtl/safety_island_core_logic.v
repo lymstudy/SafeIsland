@@ -487,12 +487,37 @@ module safety_island_core_logic
                                      (read_interval == 64'd0);
     assign cfg_table_fault_comb    = cfg_burst_type_fault_comb |
                                      cfg_burst_len_fault_comb;
-    assign cfg_fault_comb          = cfg_illegal | cfg_shadow_error |
-                                     cfg_interval_fault_comb |
-                                     cfg_table_fault_comb |
-                                     (cfg_valid & cfg_locked &
-                                      cfg_parameter_fault_comb);
-    assign cfg_operational         = cfg_valid & cfg_locked & ~cfg_fault_comb;
+
+    // TMR on cfg_fault_comb (3 copies + voter)
+    (* DONT_TOUCH = "TRUE" *) wire cfg_fault_comb_a;
+    (* DONT_TOUCH = "TRUE" *) wire cfg_fault_comb_b;
+    (* DONT_TOUCH = "TRUE" *) wire cfg_fault_comb_c;
+    wire cfg_fault_comb_voted;
+    wire cfg_fault_comb_tmr_err;
+
+    assign cfg_fault_comb_a = cfg_illegal | cfg_shadow_error |
+                              cfg_interval_fault_comb |
+                              cfg_table_fault_comb |
+                              (cfg_valid & cfg_locked &
+                               cfg_parameter_fault_comb);
+    assign cfg_fault_comb_b = cfg_illegal | cfg_shadow_error |
+                              cfg_interval_fault_comb |
+                              cfg_table_fault_comb |
+                              (cfg_valid & cfg_locked &
+                               cfg_parameter_fault_comb);
+    assign cfg_fault_comb_c = cfg_illegal | cfg_shadow_error |
+                              cfg_interval_fault_comb |
+                              cfg_table_fault_comb |
+                              (cfg_valid & cfg_locked &
+                               cfg_parameter_fault_comb);
+
+    tmr_voter #(1) u_cfg_fault_tmr (
+        .a(cfg_fault_comb_a), .b(cfg_fault_comb_b), .c(cfg_fault_comb_c),
+        .voted(cfg_fault_comb_voted), .mismatch(cfg_fault_comb_tmr_err)
+    );
+    assign cfg_fault_comb = cfg_fault_comb_voted | cfg_fault_comb_tmr_err;
+
+    assign cfg_operational = cfg_valid & cfg_locked & ~cfg_fault_comb;
 
     // Pass-through to fault detector
     assign cfg_fault_comb_out     = cfg_fault_comb;
@@ -625,6 +650,13 @@ module safety_island_core_logic
     wire safety_fault_comb;
     wire safety_fault_stable_comb;
     wire safety_fault_latched_comb;
+
+    // TMR on safety_fault_comb (3 copies + voter)
+    (* DONT_TOUCH = "TRUE" *) wire safety_fault_comb_a;
+    (* DONT_TOUCH = "TRUE" *) wire safety_fault_comb_b;
+    (* DONT_TOUCH = "TRUE" *) wire safety_fault_comb_c;
+    wire safety_fault_comb_voted;
+    wire safety_fault_comb_tmr_err;
     reg  [7:0] safety_error_code_comb;
 
     assign fsm_state_legal_comb =
@@ -676,7 +708,7 @@ module safety_island_core_logic
     assign safety_fault_latched_comb =
         (state == ST_SAFE_ERROR) && (safety_error_code_q != ERR_NONE);
 
-    assign safety_fault_comb =
+    assign safety_fault_comb_a =
         fsm_state_illegal_comb      |
         state_inv_mismatch_comb     |
         current_index_fault_comb    |
@@ -690,6 +722,41 @@ module safety_island_core_logic
         safety_error_code_tmr_mismatch |
         outstanding_fault_comb      |
         safety_fault_latched_comb;
+    assign safety_fault_comb_b =
+        fsm_state_illegal_comb      |
+        state_inv_mismatch_comb     |
+        current_index_fault_comb    |
+        pending_index_fault_comb    |
+        pending_ptr_fault_comb      |
+        pending_valid_fault_comb    |
+        accum_shadow_fault_comb     |
+        kat_fail_comb               |
+        state_tmr_mismatch          |
+        safety_fault_q_tmr_mismatch |
+        safety_error_code_tmr_mismatch |
+        outstanding_fault_comb      |
+        safety_fault_latched_comb;
+    assign safety_fault_comb_c =
+        fsm_state_illegal_comb      |
+        state_inv_mismatch_comb     |
+        current_index_fault_comb    |
+        pending_index_fault_comb    |
+        pending_ptr_fault_comb      |
+        pending_valid_fault_comb    |
+        accum_shadow_fault_comb     |
+        kat_fail_comb               |
+        state_tmr_mismatch          |
+        safety_fault_q_tmr_mismatch |
+        safety_error_code_tmr_mismatch |
+        outstanding_fault_comb      |
+        safety_fault_latched_comb;
+
+    tmr_voter #(1) u_safety_fault_tmr (
+        .a(safety_fault_comb_a), .b(safety_fault_comb_b), .c(safety_fault_comb_c),
+        .voted(safety_fault_comb_voted), .mismatch(safety_fault_comb_tmr_err)
+    );
+    assign safety_fault_comb = safety_fault_comb_voted | safety_fault_comb_tmr_err;
+
     assign safety_fault_stable_comb = safety_fault_comb & safety_fault_q;
 
     // Output to fault detector

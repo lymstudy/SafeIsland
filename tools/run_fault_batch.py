@@ -101,7 +101,7 @@ def build_phase3_faults():
                            f"[expr {{[examine dut.gen_read_master({mi}).u_read_engine.slot_timeout_q({si})]}}]"))
             faults.append((f"re_slot_valid_inv_m{mi}_s{si}",
                            f"dut.gen_read_master({mi}).u_read_engine.slot_valid_inv_q({si})",
-                           f"[expr {{[examine dut.gen_read_master({mi}).u_read_engine.slot_valid_q({si})]}}]"))
+                           f"[expr {{[examine dut.gen_read_master({mi}).u_read_engine.slot_valid_q_a({si})]}}]"))
             faults.append((f"re_slot_done_inv_m{mi}_s{si}",
                            f"dut.gen_read_master({mi}).u_read_engine.slot_done_inv_q({si})",
                            f"[expr {{[examine dut.gen_read_master({mi}).u_read_engine.slot_done_q({si})]}}]"))

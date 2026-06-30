@@ -62,7 +62,11 @@ reg [31:0]            slot_age_q      [0:MAX_OUTSTANDING-1];
 reg [DATA_WIDTH-1:0]  slot_accum_q    [0:MAX_OUTSTANDING-1];
 reg                   slot_error_q    [0:MAX_OUTSTANDING-1];
 reg                   slot_timeout_q  [0:MAX_OUTSTANDING-1];
-reg                   slot_valid_q    [0:MAX_OUTSTANDING-1];
+(* DONT_TOUCH = "TRUE" *) reg slot_valid_q_a  [0:MAX_OUTSTANDING-1];
+(* DONT_TOUCH = "TRUE" *) reg slot_valid_q_b  [0:MAX_OUTSTANDING-1];
+(* DONT_TOUCH = "TRUE" *) reg slot_valid_q_c  [0:MAX_OUTSTANDING-1];
+wire                  slot_valid_q_voted [0:MAX_OUTSTANDING-1];
+wire                  slot_valid_q_tmr_err [0:MAX_OUTSTANDING-1];
 reg                   slot_done_q     [0:MAX_OUTSTANDING-1];
 reg [CRC_WIDTH-1:0]  slot_ar_sig_q   [0:MAX_OUTSTANDING-1];
 
@@ -109,14 +113,23 @@ assign ar_payload = {m_axi_arid, m_axi_araddr, m_axi_arlen, m_axi_arsize, m_axi_
 assign ar_signature = crc_n(ar_payload, ID_WIDTH + ADDR_WIDTH + 8 + 3 + 2);
 assign ar_signature_dup = crc_n_dup(ar_payload, ID_WIDTH + ADDR_WIDTH + 8 + 3 + 2);
 
+(* DONT_TOUCH = "TRUE" *) wire [CRC_WIDTH-1:0] ar_signature_triple;
+assign ar_signature_triple = crc_n_triple(ar_payload, ID_WIDTH + ADDR_WIDTH + 8 + 3 + 2);
+
 reg [CRC_WIDTH-1:0] r_crc_expected;
 reg [CRC_WIDTH-1:0] r_crc_expected_dup;
+(* DONT_TOUCH = "TRUE" *) reg [CRC_WIDTH-1:0] r_crc_expected_triple;
 reg [31:0] scan_i;
 reg [31:0] fault_i;
 reg        slot_shadow_error_comb;
 wire       ptr_shadow_error_comb;
 wire       output_shadow_error_comb;
-wire       crc_calc_mismatch_comb;
+(* DONT_TOUCH = "TRUE" *) wire crc_calc_mismatch_a;
+(* DONT_TOUCH = "TRUE" *) wire crc_calc_mismatch_b;
+(* DONT_TOUCH = "TRUE" *) wire crc_calc_mismatch_c;
+wire crc_calc_mismatch_voted;
+wire crc_calc_mismatch_tmr_err;
+wire crc_calc_mismatch_comb;
 
 assign ar_fire = m_axi_arvalid && m_axi_arready;
 assign r_fire = m_axi_rvalid && m_axi_rready;
@@ -136,9 +149,21 @@ assign output_shadow_error_comb =
     (error_inv != ~error) ||
     (timeout_inv != ~timeout) ||
     (read_data_inv != ~read_data);
-assign crc_calc_mismatch_comb =
+assign crc_calc_mismatch_a =
     (ar_signature_dup != ar_signature) ||
     (r_crc_expected_dup != r_crc_expected);
+assign crc_calc_mismatch_b =
+    (ar_signature_triple != ar_signature) ||
+    (r_crc_expected_triple != r_crc_expected);
+assign crc_calc_mismatch_c =
+    (ar_signature_triple != ar_signature_dup) ||
+    (r_crc_expected_triple != r_crc_expected_dup);
+
+tmr_voter #(1) u_crc_tmr (
+    .a(crc_calc_mismatch_a), .b(crc_calc_mismatch_b), .c(crc_calc_mismatch_c),
+    .voted(crc_calc_mismatch_voted), .mismatch(crc_calc_mismatch_tmr_err)
+);
+assign crc_calc_mismatch_comb = crc_calc_mismatch_voted | crc_calc_mismatch_tmr_err;
 assign internal_safety_fault =
     slot_shadow_error_comb ||
     ptr_shadow_error_comb ||
@@ -147,6 +172,19 @@ assign internal_safety_fault =
     (wr_ptr >= MAX_OUTSTANDING) ||
     (rd_ptr >= MAX_OUTSTANDING) ||
     (outstanding_count > MAX_OUTSTANDING);
+
+genvar sv_i;
+generate
+    for (sv_i = 0; sv_i < MAX_OUTSTANDING; sv_i = sv_i + 1) begin : gen_slot_valid_tmr
+        tmr_voter #(1) u_sv_tmr (
+            .a(slot_valid_q_a[sv_i]),
+            .b(slot_valid_q_b[sv_i]),
+            .c(slot_valid_q_c[sv_i]),
+            .voted(slot_valid_q_voted[sv_i]),
+            .mismatch(slot_valid_q_tmr_err[sv_i])
+        );
+    end
+endgenerate
 
 function [31:0] inc_ptr;
     input [31:0] ptr;
@@ -224,6 +262,35 @@ begin
 end
 endfunction
 
+(* DONT_TOUCH = "TRUE" *) function [CRC_WIDTH-1:0] crc_n_triple;
+    input [ID_WIDTH+ADDR_WIDTH+8+3+2+DATA_WIDTH+2+1-1:0] payload;
+    input integer payload_bits;
+    reg [CRC_WIDTH-1:0] crc;
+    reg feedback;
+    integer bit_i;
+begin
+    if (CRC_WIDTH == 8) begin
+        crc = 8'h00;
+        for (bit_i = payload_bits - 1; bit_i >= 0; bit_i = bit_i - 1) begin
+            feedback = crc[7] ^ payload[bit_i];
+            crc = {crc[6:0], 1'b0};
+            if (feedback)
+                crc = crc ^ 8'h07;
+        end
+        crc_n_triple = crc;
+    end else begin
+        crc = 16'hFFFF;
+        for (bit_i = payload_bits - 1; bit_i >= 0; bit_i = bit_i - 1) begin
+            feedback = crc[15] ^ payload[bit_i];
+            crc = {crc[14:0], 1'b0};
+            if (feedback)
+                crc = crc ^ 16'h1021;
+        end
+        crc_n_triple = crc;
+    end
+end
+endfunction
+
 integer i;
 
 always @* begin
@@ -236,7 +303,8 @@ always @* begin
             (slot_accum_inv_q[fault_i] != ~slot_accum_q[fault_i]) ||
             (slot_error_inv_q[fault_i] != ~slot_error_q[fault_i]) ||
             (slot_timeout_inv_q[fault_i] != ~slot_timeout_q[fault_i]) ||
-            (slot_valid_inv_q[fault_i] != ~slot_valid_q[fault_i]) ||
+            (slot_valid_inv_q[fault_i] != ~slot_valid_q_voted[fault_i]) ||
+            slot_valid_q_tmr_err[fault_i] ||
             (slot_done_inv_q[fault_i] != ~slot_done_q[fault_i]) ||
             (slot_ar_sig_inv_q[fault_i] != ~slot_ar_sig_q[fault_i]))
             slot_shadow_error_comb = 1'b1;
@@ -246,7 +314,7 @@ always @* begin
     rid_match_idx = 32'd0;
     for (scan_i = 0; scan_i < MAX_OUTSTANDING; scan_i = scan_i + 1) begin
         if (!rid_match_found &&
-            slot_valid_q[scan_i] &&
+            slot_valid_q_voted[scan_i] &&
             !slot_done_q[scan_i] &&
             (slot_id_q[scan_i] == m_axi_rid)) begin
             rid_match_found = 1'b1;
@@ -266,9 +334,14 @@ always @* begin
             {slot_ar_sig_q[rid_match_idx], m_axi_rid, m_axi_rdata, m_axi_rresp, m_axi_rlast},
             CRC_WIDTH + ID_WIDTH + DATA_WIDTH + 2 + 1
         );
+        r_crc_expected_triple = crc_n_triple(
+            {slot_ar_sig_q[rid_match_idx], m_axi_rid, m_axi_rdata, m_axi_rresp, m_axi_rlast},
+            CRC_WIDTH + ID_WIDTH + DATA_WIDTH + 2 + 1
+        );
     end else begin
         r_crc_expected = {CRC_WIDTH{1'b0}};
         r_crc_expected_dup = {CRC_WIDTH{1'b0}};
+        r_crc_expected_triple = {CRC_WIDTH{1'b0}};
     end
     if (rid_match_found) begin
         r_accum_next = slot_accum_q[rid_match_idx] | m_axi_rdata;
@@ -313,7 +386,9 @@ always @(posedge clk) begin
             slot_accum_q[i]   <= {DATA_WIDTH{1'b0}};
             slot_error_q[i]   <= 1'b0;
             slot_timeout_q[i] <= 1'b0;
-            slot_valid_q[i]   <= 1'b0;
+            slot_valid_q_a[i] <= 1'b0;
+            slot_valid_q_b[i] <= 1'b0;
+            slot_valid_q_c[i] <= 1'b0;
             slot_done_q[i]    <= 1'b0;
             slot_ar_sig_q[i]   <= {CRC_WIDTH{1'b0}};
             slot_id_inv_q[i]      <= {ID_WIDTH{1'b1}};
@@ -375,7 +450,9 @@ always @(posedge clk) begin
             slot_accum_q[wr_ptr]   <= {DATA_WIDTH{1'b0}};
             slot_error_q[wr_ptr]   <= 1'b0;
             slot_timeout_q[wr_ptr] <= 1'b0;
-            slot_valid_q[wr_ptr]   <= 1'b1;
+            slot_valid_q_a[wr_ptr] <= 1'b1;
+            slot_valid_q_b[wr_ptr] <= 1'b1;
+            slot_valid_q_c[wr_ptr] <= 1'b1;
             slot_done_q[wr_ptr]    <= 1'b0;
             slot_ar_sig_q[wr_ptr]  <= ar_signature;
             slot_id_inv_q[wr_ptr]      <= ~m_axi_arid;
@@ -395,7 +472,7 @@ always @(posedge clk) begin
         end
 
         for (i = 0; i < MAX_OUTSTANDING; i = i + 1) begin
-            if (slot_valid_q[i] && !slot_done_q[i]) begin
+            if (slot_valid_q_voted[i] && !slot_done_q[i]) begin
                 if (slot_age_q[i] < TIMEOUT_CYCLES) begin
                     slot_age_q[i] <= slot_age_q[i] + 32'd1;
                     slot_age_inv_q[i] <= ~(slot_age_q[i] + 32'd1);
@@ -419,7 +496,7 @@ always @(posedge clk) begin
                     slot_beat_q[rid_match_idx] <= slot_beat_q[rid_match_idx] + 8'd1;
                     slot_beat_inv_q[rid_match_idx] <= ~(slot_beat_q[rid_match_idx] + 8'd1);
                 end
-            end else if (slot_valid_q[rd_ptr] && !slot_done_q[rd_ptr]) begin
+            end else if (slot_valid_q_voted[rd_ptr] && !slot_done_q[rd_ptr]) begin
                 slot_accum_q[rd_ptr] <= {DATA_WIDTH{1'b0}};
                 slot_error_q[rd_ptr] <= 1'b1;
                 slot_done_q[rd_ptr]  <= 1'b1;
@@ -431,7 +508,7 @@ always @(posedge clk) begin
             end
         end
 
-        if (slot_valid_q[rd_ptr] &&
+        if (slot_valid_q_voted[rd_ptr] &&
             !slot_done_q[rd_ptr] &&
             (slot_age_q[rd_ptr] >= (TIMEOUT_CYCLES - 1))) begin
             slot_accum_q[rd_ptr]   <= {DATA_WIDTH{1'b0}};
@@ -444,7 +521,7 @@ always @(posedge clk) begin
             slot_done_inv_q[rd_ptr]    <= ~1'b1;
         end
 
-        if (slot_valid_q[rd_ptr] && slot_done_q[rd_ptr]) begin
+        if (slot_valid_q_voted[rd_ptr] && slot_done_q[rd_ptr]) begin
             done      <= 1'b1;
             error     <= slot_error_q[rd_ptr] | slot_timeout_q[rd_ptr];
             timeout   <= slot_timeout_q[rd_ptr];
@@ -454,7 +531,9 @@ always @(posedge clk) begin
             timeout_inv   <= ~slot_timeout_q[rd_ptr];
             read_data_inv <= ~slot_accum_q[rd_ptr];
 
-            slot_valid_q[rd_ptr]   <= 1'b0;
+            slot_valid_q_a[rd_ptr] <= 1'b0;
+            slot_valid_q_b[rd_ptr] <= 1'b0;
+            slot_valid_q_c[rd_ptr] <= 1'b0;
             slot_done_q[rd_ptr]    <= 1'b0;
             slot_ar_sig_q[rd_ptr]   <= {CRC_WIDTH{1'b0}};
             slot_error_q[rd_ptr]   <= 1'b0;

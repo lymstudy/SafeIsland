@@ -27,7 +27,7 @@ FDET_TB   := $(TB_DIR)/tb_safety_island_fault_detector.v
 FDET_SIMV := $(BUILD_DIR)/simv_fdet
 FDET_FSDB := $(WAVE_DIR)/fault_detector.fsdb
 
-.PHONY: all dirs full full-comp full-run fault fault-comp fault-run batch batch-comp batch-run fdet fdet-comp fdet-run regress verdi-full verdi-fault verdi-fdet clean
+.PHONY: all dirs full full-comp full-run fault fault-comp fault-run batch batch-comp batch-run fdet fdet-comp fdet-run regress regress-cov verdi-full verdi-fault verdi-fdet clean
 
 all: regress
 
@@ -102,6 +102,38 @@ verdi-fault:
 verdi-fdet:
 	$(VERDI) -ssf $(FDET_FSDB) -sv -f $(RTL_F) $(FDET_TB) -top $(FDET_TOP) &
 
+# ── Coverage (line + toggle + condition + FSM) ──
+COV_DIR       := $(CURDIR)/coverage
+COV_BUILD     := $(COV_DIR)/build
+COV_REPORT    := $(COV_DIR)/report
+COV_OPTS      := -cm line+tgl+cond+fsm -cm_dir $(COV_BUILD) -cm_name
+
+.PHONY: cov-full cov-full-comp cov-full-run cov-report cov-clean
+
+cov-full: cov-full-comp cov-full-run cov-report
+
+cov-full-comp: dirs
+	mkdir -p $(COV_BUILD)
+	$(VCS) $(VCS_OPTS) $(COV_OPTS) full \
+		-F $(RTL_F) \
+		$(FULL_TB) \
+		-top $(FULL_TOP) \
+		-o $(COV_BUILD)/simv_cov \
+		-l $(LOG_DIR)/cov_compile.log
+
+cov-full-run:
+	$(COV_BUILD)/simv_cov -l $(LOG_DIR)/cov_run.log
+
+cov-report:
+	urg -dir $(COV_BUILD)/*.vdb -report $(COV_REPORT)
+
+cov-clean:
+	rm -rf $(COV_DIR)
+
+# ── Full regression with coverage ──
+regress-cov: full fault fdet cov-full
+
 clean:
 	rm -rf $(BUILD_DIR) $(WAVE_DIR) $(LOG_DIR)
 	rm -rf csrc simv simv.daidir *.daidir novas.* verdiLog ucli.key DVEfiles *fsdb*
+	rm -rf $(COV_DIR)
