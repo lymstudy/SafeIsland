@@ -425,7 +425,7 @@ module safety_island_top #(
         .scan_start_pulse       (scan_start_pulse),
         .scan_done_pulse        (scan_done_pulse),
         .clear_status           (cfg_clear_core_status),
-        .cfg_illegal            (cfg_illegal_out),
+        .cfg_illegal            (cfg_illegal_out | cfg_fault_comb_out),
         .cfg_shadow_error       (cfg_shadow_error_out),
         .cfg_interval_zero      (cfg_interval_fault_out),
         .core_safety_fault      (aggregate_safety_fault),

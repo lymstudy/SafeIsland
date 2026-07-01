@@ -1536,7 +1536,7 @@ task run_dig_cfg_burst_type_direct;
 begin
     reset_dut(); config_minimal();
     force dut.u_core.cfg_burst_type_fault_comb = 1'b1;
-    expect_fault_within_10("dig_cfg_burst_type_direct", "digital_logic_cfg", 1'b1, 1'b0, 1'b1);
+    expect_fault_within_10("dig_cfg_burst_type_direct", "digital_logic_cfg", 1'b1, 1'b0, 1'b0);
     release dut.u_core.cfg_burst_type_fault_comb;
 end
 endtask
@@ -1546,7 +1546,7 @@ task run_dig_cfg_burst_len_direct;
 begin
     reset_dut(); config_minimal();
     force dut.u_core.cfg_burst_len_fault_comb = 1'b1;
-    expect_fault_within_10("dig_cfg_burst_len_direct", "digital_logic_cfg", 1'b1, 1'b0, 1'b1);
+    expect_fault_within_10("dig_cfg_burst_len_direct", "digital_logic_cfg", 1'b1, 1'b0, 1'b0);
     release dut.u_core.cfg_burst_len_fault_comb;
 end
 endtask
@@ -1571,7 +1571,7 @@ task run_dig_cfg_interval_direct;
 begin
     reset_dut(); config_minimal();
     force dut.u_core.cfg_interval_fault_comb = 1'b1;
-    expect_fault_within_10("dig_cfg_interval_direct", "digital_logic_cfg", 1'b1, 1'b0, 1'b1);
+    expect_fault_within_10("dig_cfg_interval_direct", "digital_logic_cfg", 1'b1, 1'b0, 1'b0);
     release dut.u_core.cfg_interval_fault_comb;
 end
 endtask

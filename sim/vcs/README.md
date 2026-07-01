@@ -12,36 +12,97 @@
 
 ---
 
+## 赛题提交用 — 测试分类
+
+按赛题评分要求，测试分为两大类：
+
+### 一、VCS 功能仿真（评分第1项：RTL + 功能验证 20分）
+
+```bash
+cd SafeIsland/sim/vcs
+make full        # 功能仿真 34 场景, 含 FSDB 波形
+make cov-full    # 功能仿真 + 代码行覆盖率 (urg 报告)
+```
+
+| 套件 | 用例数 | TB Top | 说明 |
+|------|:---:|------|------|
+| `full` | 34 | `tb_safety_island_top_full` | 功能正确性全场景 |
+
+### 二、注错仿真（评分第4项：注错测试与覆盖 20分）
+
+```bash
+make fault       # 故障注入基线 (54 targeted fault sites)
+make batch       # 故障注入全量 bit 扫描 (594 bit-level sweep)
+```
+
+| 套件 | 用例数 | TB Top | 说明 |
+|------|:---:|------|------|
+| `fault` | 54 | `tb_safety_island_fault_injection` | Memory/寄存器 + 数字逻辑 fault site 定向注入 |
+| `batch` | 594 | `tb_safety_island_fault_injection` + `+define+FI_ARRAY_BIT_TARGETS` + `+BATCH_ALL` | 全寄存器 bit 级扫描 |
+
+**注错覆盖分类：**
+
+| 类别 | 评分项 | 满分 | fault 套件覆盖 | batch 套件覆盖 |
+|------|--------|:---:|:---:|:---:|
+| Memory/寄存器注错 | 10 分 | 配置 shadow/反码、FSM TMR、累加反码、FIFO 指针 | 全 bit 扫描 (标量 100% + 数组等效) |
+| 数字逻辑注错 | 10 分 | CRC/FSM/KAT/心跳/Stuck-at/优先级编码 | 数字逻辑 fault site (22 target) |
+
+### 三、辅助：Fault Detector 单元测试
+
+```bash
+make fdet        # FD 模块单元测试 18 cases
+```
+
+---
+
+## 一键回归（赛题提交完整验证）
+
+```bash
+# 完整回归: 功能仿真 + 注错基线 + 注错全量 + FD单元测试
+make regress-submit
+
+# 仅评分相关: 功能仿真 + 注错全部
+make regress-score
+
+# 带代码覆盖率
+make regress-cov
+```
+
+---
+
 ## 快速开始
 
 ```bash
 cd SafeIsland/sim/vcs
 
-# 一键跑全部回归（功能 + 故障注入）
-make regress
+# 赛题评分核心测试
+make full        # 功能仿真 34 case
+make fault       # 注错仿真基线 54 case
+make batch       # 注错仿真全量 bit 扫描 594 case
 
-# 分步执行：
-make full       # 功能仿真, 34 case
-make fault      # 故障注入基线, 38 case
-make batch      # 故障注入全量 bit 扫描, 594 case
+# 全部一键
+make regress-score
 ```
 
 ---
 
 ## Makefile 目标说明
 
+### 赛题评分核心
+
+| 目标 | 说明 | 用例数 | 评分项 |
+|------|------|:---:|------|
+| `full` | 功能仿真：编译 + 运行 | 34 | RTL+功能验证 (20分) |
+| `fault` | 故障注入基线：编译 + 运行 | 54 | 注错覆盖 (20分) |
+| `batch` | 故障注入全量 bit 扫描 | 594 | 注错覆盖-bit级 (20分) |
+| `regress-score` | `full` + `fault` + `batch` + summary | — | 赛题评分全验证 |
+| `regress-submit` | `regress-score` + `fdet` | — | 赛题提交完整版 |
+| `cov-full` | 功能仿真 + 代码覆盖率 | 34 | 覆盖率报告 (必需) |
+
+### 辅助 & 工具
+
 | 目标 | 说明 | 用例数 |
 |------|------|:--:|
-| `all` / `regress` | 依次运行 `full` + `fault` + `fdet` | 34 + 38 + 18 |
-| `full` | 功能仿真：编译 + 运行 | 34 |
-| `full-comp` | 仅编译功能仿真 | — |
-| `full-run` | 仅运行功能仿真 | — |
-| `fault` | 故障注入基线：编译 + 运行 | 38 |
-| `fault-comp` | 仅编译故障注入 | — |
-| `fault-run` | 仅运行故障注入基线 | — |
-| `batch` | 故障注入全量 bit 扫描 | 594 |
-| `batch-comp` | 仅编译 batch 模式 | — |
-| `batch-run` | 仅运行 batch 扫描 | — |
 | `fdet` | fault_detector 单元测试 | 18 |
 | `verdi-full` | Verdi 打开功能仿真波形 | — |
 | `verdi-fault` | Verdi 打开故障注入波形 | — |
@@ -51,18 +112,18 @@ make batch      # 故障注入全量 bit 扫描, 594 case
 
 ## 预期输出
 
-### make full（34 case）
+### make full（功能仿真 34 case）
 ```
 PASS: safety_island_top full test completed, cases=34
 ```
 
-### make fault（38 case）
+### make fault（注错基线 54 case）
 ```
-FI_SUMMARY: total=38 corrected=0 detected=38 undetected=0 protection_rate=100%
+FI_SUMMARY: total=54 corrected=2 detected=48 undetected=0 protection_rate=100%
 PASS: safety_island fault injection campaign completed
 ```
 
-### make batch（594 case）
+### make batch（注错全量 bit 扫描 594 case）
 ```
 FI_SUMMARY: total=594 corrected=0 detected=594 undetected=0 protection_rate=100%
 PASS: safety_island fault injection campaign completed

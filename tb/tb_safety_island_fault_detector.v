@@ -264,9 +264,8 @@ module tb_safety_island_fault_detector;
     begin
         case_fail = 0;
         reset_dut();
-        // data=0x04, mask=0xFF, expected=0x00
-        // OR accum = 0x04 ≠ 0 → external fault
-        run_scan_round(64'h4, 64'hFFFF_FFFF_FFFF_FFFF, 64'h0, 32'd0,
+        // data=0x04, mask=0xFF, expected=0x04 → OR accum non-zero, no mismatch
+        run_scan_round(64'h4, 64'hFFFF_FFFF_FFFF_FFFF, 64'h4, 32'd0,
                        1'b0, 1'b0);
         expect_equal("test1_or_result", fault_or_result, 64'h4);
         expect_bit("test1_external", external_fault_event, 1'b1);
@@ -589,6 +588,11 @@ module tb_safety_island_fault_detector;
         total_fail = 0;
         case_fail = 0;
         init();
+
+`ifdef FSDB
+        $fsdbDumpfile("waves/fault_detector.fsdb");
+        $fsdbDumpvars(0, tb_safety_island_fault_detector);
+`endif
 
         test_or_accum_external_fault();
         test_no_fault();

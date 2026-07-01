@@ -322,52 +322,20 @@ module safety_island_fault_detector #(
 
             // ── End of scan: finalize results ──
             if (scan_done_pulse) begin
+                // Blocking variable for correct priority encoding.
+                // Priority (highest→lowest): Stuck-at (0x32) > Latent (0x33)
+                // > Expected mismatch (0x31) > External fault (0x30) > Bus.
+                reg [7:0] next_error_code;
+                next_error_code = ERR_NONE;
+
                 fault_or_result <= accum;
                 fault_or_result_inv <= ~accum;
 
-                // External fault: any bit set in OR accumulator
-                if (accum != {DATA_W{1'b0}}) begin
-                    external_fault_event <= 1'b1;
-                    external_fault_event_inv <= 1'b0;
-                    fault_status[FAULT_EXTERNAL_BIT] <= 1'b1;
-                    fault_status_inv[FAULT_EXTERNAL_BIT] <= 1'b0;
-                    if (error_code == ERR_NONE) begin
-                        error_code <= ERR_EXTERNAL_FAULT;
-                        error_code_inv <= ~ERR_EXTERNAL_FAULT;
-                    end
-                end
-
-                // Expected mismatch finalized
-                if (|ch_mismatch_this_round) begin
-                    external_fault_event <= 1'b1;
-                    external_fault_event_inv <= 1'b0;
-                    if (error_code == ERR_NONE) begin
-                        error_code <= ERR_EXPECTED_MISMATCH;
-                        error_code_inv <= ~ERR_EXPECTED_MISMATCH;
-                    end
-                end
-
-                // Bus fault finalized
-                if (bus_error_seen || bus_timeout_seen) begin
-                    bus_fault_event <= 1'b1;
-                    bus_fault_event_inv <= 1'b0;
-                    if (error_code == ERR_NONE) begin
-                        if (bus_timeout_seen) begin
-                            error_code <= ERR_BUS_TIMEOUT;
-                            error_code_inv <= ~ERR_BUS_TIMEOUT;
-                        end else begin
-                            error_code <= ERR_BUS_RESP;
-                            error_code_inv <= ~ERR_BUS_RESP;
-                        end
-                    end
-                end
-
-                // ── Per-channel stuck-at and latent detection ──
+                // ─── P1: Per-channel stuck-at and latent (MOST specific) ───
                 for (ch = 0; ch < NUM_MASTERS; ch = ch + 1) begin
                     if (ch_mismatch_this_round[ch] ||
                         fault_status[FAULT_ERROR_RESP_BIT + ch] ||
                         fault_status[FAULT_TIMEOUT_BIT + ch]) begin
-                        // Fault persists this round
                         if (stuck_counter[ch] < STUCK_AT_THRESHOLD)
                             stuck_counter[ch] <= stuck_counter[ch] + 4'd1;
 
@@ -376,43 +344,70 @@ module safety_island_fault_detector #(
                             fault_status_inv[FAULT_STUCK_AT_BIT + ch] <= 1'b0;
                             safety_island_fault_event <= 1'b1;
                             safety_island_fault_event_inv <= 1'b0;
-                            if (error_code == ERR_NONE) begin
-                                error_code <= ERR_STUCK_AT_FAULT;
-                                error_code_inv <= ~ERR_STUCK_AT_FAULT;
+                            if (next_error_code == ERR_NONE) begin
+                                next_error_code = ERR_STUCK_AT_FAULT;
                             end
                         end
                     end else begin
-                        // No fault this round
                         if (stuck_counter[ch] > 4'd0 &&
                             stuck_counter[ch] < STUCK_AT_THRESHOLD &&
                             ch_mismatch_latched[ch]) begin
-                            // Was faulting but recovered → latent fault
                             fault_status[FAULT_LATENT_BIT + ch] <= 1'b1;
                             fault_status_inv[FAULT_LATENT_BIT + ch] <= 1'b0;
                             safety_island_latent_fault_event <= 1'b1;
                             safety_island_latent_fault_event_inv <= 1'b0;
-                            if (error_code == ERR_NONE) begin
-                                error_code <= ERR_LATENT_FAULT;
-                                error_code_inv <= ~ERR_LATENT_FAULT;
+                            if (next_error_code == ERR_NONE) begin
+                                next_error_code = ERR_LATENT_FAULT;
                             end
                         end
                         stuck_counter[ch] <= 4'd0;
                     end
 
-                    // Stuck-at counter range check (safety)
                     if (stuck_counter[ch] > STUCK_AT_THRESHOLD) begin
                         safety_island_fault_event <= 1'b1;
                         safety_island_fault_event_inv <= 1'b0;
                         fault_status[FAULT_SAFETY_ISLAND_BIT] <= 1'b1;
                         fault_status_inv[FAULT_SAFETY_ISLAND_BIT] <= 1'b0;
-                        if (error_code == ERR_NONE) begin
-                            error_code <= ERR_STUCK_CTR_RANGE;
-                            error_code_inv <= ~ERR_STUCK_CTR_RANGE;
+                        if (next_error_code == ERR_NONE) begin
+                            next_error_code = ERR_STUCK_CTR_RANGE;
                         end
                     end
                 end
 
-                // Accumulator shadow check → safety island fault
+                // ─── P2: Expected mismatch (more specific than generic external) ───
+                if (|ch_mismatch_this_round) begin
+                    external_fault_event <= 1'b1;
+                    external_fault_event_inv <= 1'b0;
+                    if (next_error_code == ERR_NONE) begin
+                        next_error_code = ERR_EXPECTED_MISMATCH;
+                    end
+                end
+
+                // ─── P3: External fault (generic fallback) ───
+                if (accum != {DATA_W{1'b0}}) begin
+                    external_fault_event <= 1'b1;
+                    external_fault_event_inv <= 1'b0;
+                    fault_status[FAULT_EXTERNAL_BIT] <= 1'b1;
+                    fault_status_inv[FAULT_EXTERNAL_BIT] <= 1'b0;
+                    if (next_error_code == ERR_NONE) begin
+                        next_error_code = ERR_EXTERNAL_FAULT;
+                    end
+                end
+
+                // ─── P4: Bus fault ───
+                if (bus_error_seen || bus_timeout_seen) begin
+                    bus_fault_event <= 1'b1;
+                    bus_fault_event_inv <= 1'b0;
+                    if (next_error_code == ERR_NONE) begin
+                        if (bus_timeout_seen) begin
+                            next_error_code = ERR_BUS_TIMEOUT;
+                        end else begin
+                            next_error_code = ERR_BUS_RESP;
+                        end
+                    end
+                end
+
+                // ─── Accumulator shadow check → safety island fault ───
                 if (accum_shadow_fault) begin
                     safety_island_fault_event <= 1'b1;
                     safety_island_fault_event_inv <= 1'b0;
@@ -420,10 +415,14 @@ module safety_island_fault_detector #(
                     fault_status[FAULT_SAFETY_ISLAND_BIT] <= 1'b1;
                     fault_status_inv[FAULT_ACCUM_SHADOW_BIT] <= 1'b0;
                     fault_status_inv[FAULT_SAFETY_ISLAND_BIT] <= 1'b0;
-                    if (error_code == ERR_NONE) begin
-                        error_code <= ERR_ACCUM_SHADOW;
-                        error_code_inv <= ~ERR_ACCUM_SHADOW;
+                    if (next_error_code == ERR_NONE) begin
+                        next_error_code = ERR_ACCUM_SHADOW;
                     end
+                end
+
+                if (next_error_code != ERR_NONE) begin
+                    error_code <= next_error_code;
+                    error_code_inv <= ~next_error_code;
                 end
 
                 // Aggregate safety island fault
