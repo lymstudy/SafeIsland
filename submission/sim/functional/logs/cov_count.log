@@ -1,0 +1,57 @@
+Command: /home/autumn/Desktop/submission/sim/functional/coverage/build/simv_cov -cm line+tgl+cond+fsm -cm_count -cm_name full -l /home/autumn/Desktop/submission/sim/functional/logs/cov_count.log
+Chronologic VCS simulator copyright 1991-2022
+Contains Synopsys proprietary information.
+Compiler version T-2022.06_Full64; Runtime version T-2022.06_Full64;  Jul  2 13:11 2026
+*Verdi* Loading libsscore_vcs202206.so
+FSDB Dumper for VCS, Release Verdi_T-2022.06, Linux x86_64/64bit, 05/29/2022
+(C) 1996 - 2022 by Synopsys, Inc.
+*Verdi* FSDB WARNING: The FSDB file already exists. Overwriting the FSDB file may crash the programs that are using this file.
+*Verdi* : Create FSDB file 'waves/full.fsdb'
+*Verdi* : Begin traversing the scope (tb_safety_island_top_full), layer (0).
+*Verdi* : End of traversing.
+PASS: basic_fault_flow
+PASS: no_fault_flow
+PASS: multi_master_flow
+PASS: burst_16_incr_flow
+PASS: wrap_burst_flow
+PASS: bus_error_flow
+PASS: timeout_flow
+PASS: outstanding_flow
+PASS: out_of_order_flow
+PASS: interleaving_flow
+PASS: out_of_order_interleaving_flow
+PASS: invalid_rid_error_flow
+PASS: aou_rcheck_ok_flow
+PASS: aou_rcheck_error_flow
+PASS: aou_rcheck_burst_error_flow
+PASS: config_error_flow
+PASS: latent_fault_flow
+PASS: expected_mismatch_flow
+PASS: expected_match_flow
+PASS: expected_masked_match_flow
+PASS: heartbeat_pass_flow
+PASS: heartbeat_fail_flow
+PASS: heartbeat_no_interfere_flow
+PASS: kat_pass_flow
+PASS: kat_fail_flow
+PASS: kat_disabled_flow
+NOTE: kat_araddr_corrupt_flow requires CRC_WIDTH=16
+PASS: kat_araddr_corrupt_flow
+PASS: tmr_state_ok_flow
+PASS: tmr_state_minority_flow
+PASS: tmr_state_double_fault_flow
+PASS: tmr_fd_stuck_flow
+PASS: tmr_cfg_locked_fault_flow
+PASS: write_verify_pass_flow
+PASS: write_verify_fail_flow
+PASS: safety_island_top full test completed, cases=34
+$finish called from file "/home/autumn/Desktop/submission/tb/functional/tb_safety_island_top_full.v", line 1620.
+$finish at simulation time            166595000
+
+---------------------------------------------------------------------------
+VCS Coverage Metrics: during simulation line, cond, FSM, tgl was monitored
+---------------------------------------------------------------------------
+           V C S   S i m u l a t i o n   R e p o r t 
+Time: 166595000 ps
+CPU Time:      2.110 seconds;       Data structure size:   0.3Mb
+Thu Jul  2 13:12:25 2026

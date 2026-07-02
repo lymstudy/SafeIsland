@@ -17,7 +17,7 @@ submission/
 ├── tb/
 │   ├── functional/           功能仿真 testbench
 │   └── fault_injection/      注错仿真 testbench
-├── scripts/                  VCS 运行脚本 + 环境运行说明.md
+├── scripts/                  VCS 脚本 + 环境运行说明（仅脚本，无生成物）
 ├── sim/
 │   ├── functional/           功能仿真结果 + 行覆盖率
 │   └── fault_injection/      注错结果 + 诊断覆盖率
@@ -54,19 +54,20 @@ bash run_all.sh
 
 详细说明见 scripts/环境运行说明.md
 
-## 验证结果
+## 验证结果 (VM 实测 2026-07-02)
 
 | 项目 | 结果 |
 |------|------|
 | 功能仿真 | 34/34 PASS |
 | 注错基线 | 54/54, 保护率 100% |
 | 注错全量 bit | 610/610, 保护率 100% |
-| 代码行覆盖率 | 87.5% (Line) |
+| 代码行覆盖率 | build.vdb 已生成 (Line/Tgl/Cond/FSM) |
 | SPFM / LFM | 100% / 100% |
 
 结果文件:
-- sim/functional/regression_summary.txt
-- sim/functional/line_coverage_summary.txt
+- sim/functional/logs/full_run.log
+- sim/functional/coverage/build.vdb
+- sim/fault_injection/logs/fault_run.log, batch_run.log
 - sim/fault_injection/diagnostic_coverage_summary.txt
 
 ## RTL 架构

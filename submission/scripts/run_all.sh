@@ -7,10 +7,10 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 cd "$SCRIPT_DIR"
 
 echo "=== AXI Safety Island — Full Submission Regression ==="
-make clean 2>/dev/null || true
+make clean-work clean-scripts-spill 2>/dev/null || true
 make all
 
 echo ""
-echo "All results:"
+echo "Results (sim/ only):"
 echo "  Functional:      ../sim/functional/"
 echo "  Fault injection: ../sim/fault_injection/"

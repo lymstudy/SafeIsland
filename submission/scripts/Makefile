@@ -1,5 +1,6 @@
 # AXI Safety Island — VCS submission Makefile
 # Usage: cd submission/scripts && make <target>
+# 中间文件在 sim/work/，运行脚本结束后自动清理；结果在 sim/functional/ 与 sim/fault_injection/
 
 ROOT       := $(abspath ..)
 RTL_F      := $(ROOT)/rtl/safety_island_top.f
@@ -8,9 +9,7 @@ FAULT_TB   := $(ROOT)/tb/fault_injection/tb_safety_island_fault_injection.v
 
 SIM_FUNC   := $(ROOT)/sim/functional
 SIM_FI     := $(ROOT)/sim/fault_injection
-
-BUILD_DIR  := $(CURDIR)/build
-WAVE_DIR   := $(CURDIR)/waves
+WORK_DIR   := $(ROOT)/sim/work
 
 FUNC_LOG   := $(SIM_FUNC)/logs
 FI_LOG     := $(SIM_FI)/logs
@@ -23,33 +22,37 @@ VCS_OPTS       := -full64 -sverilog -debug_access+all -kdb +define+FSDB -timesca
 VCS_BATCH_OPTS := -full64 -sverilog -debug_access+all -kdb +define+FSDB +define+FI_ARRAY_BIT_TARGETS -timescale=1ns/1ps
 
 FULL_TOP   := tb_safety_island_top_full
-FULL_SIMV  := $(BUILD_DIR)/simv_full
-FULL_FSDB  := $(WAVE_DIR)/full.fsdb
+FULL_SIMV  := $(WORK_DIR)/simv_full
+FULL_FSDB  := $(WORK_DIR)/waves/full.fsdb
 
 FAULT_TOP  := tb_safety_island_fault_injection
-FAULT_SIMV := $(BUILD_DIR)/simv_fault
-FAULT_FSDB := $(WAVE_DIR)/fault_injection.fsdb
+FAULT_SIMV := $(WORK_DIR)/simv_fault
+FAULT_FSDB := $(WORK_DIR)/waves/fault_injection.fsdb
+BATCH_SIMV := $(WORK_DIR)/simv_batch
 
 FI_CSV     := $(FI_REPORT)/fault_injection_report.csv
 
 .PHONY: all functional fault-all full full-comp full-run fault fault-comp fault-run batch batch-comp batch-run \
-        cov-full cov-full-comp cov-full-run cov-report summary clean dirs verdi-full verdi-fault
+        cov-full cov-full-comp cov-full-run cov-report summary clean clean-work clean-cov-intermediate \
+        clean-scripts-spill finalize dirs verdi-full verdi-fault
 
-all: functional fault-all summary
+all: functional fault-all summary finalize
 
 functional: full cov-full
 
 fault-all: fault batch fi-summary
 
+finalize: clean-work clean-cov-intermediate clean-scripts-spill
+
 dirs:
-	mkdir -p $(BUILD_DIR) $(WAVE_DIR)
+	mkdir -p $(WORK_DIR)/waves
 	mkdir -p $(FUNC_LOG) $(SIM_FUNC)/coverage
 	mkdir -p $(FI_LOG) $(FI_REPORT)
 
 full: full-comp full-run
 
 full-comp: dirs
-	$(VCS) $(VCS_OPTS) \
+	cd $(WORK_DIR) && $(VCS) $(VCS_OPTS) \
 		-F $(RTL_F) \
 		$(FULL_TB) \
 		-top $(FULL_TOP) \
@@ -63,7 +66,7 @@ full-run:
 fault: fault-comp fault-run
 
 fault-comp: dirs
-	$(VCS) $(VCS_OPTS) \
+	cd $(WORK_DIR) && $(VCS) $(VCS_OPTS) \
 		-F $(RTL_F) \
 		$(FAULT_TB) \
 		-top $(FAULT_TOP) \
@@ -77,15 +80,15 @@ fault-run:
 batch: batch-comp batch-run
 
 batch-comp: dirs
-	$(VCS) $(VCS_BATCH_OPTS) \
+	cd $(WORK_DIR) && $(VCS) $(VCS_BATCH_OPTS) \
 		-F $(RTL_F) \
 		$(FAULT_TB) \
 		-top $(FAULT_TOP) \
-		-o $(BUILD_DIR)/simv_batch \
+		-o $(BATCH_SIMV) \
 		-l $(FI_LOG)/batch_compile.log
 
 batch-run:
-	$(BUILD_DIR)/simv_batch +BATCH_ALL +CSV_FILE=$(FI_REPORT)/fault_batch_report.csv \
+	$(BATCH_SIMV) +BATCH_ALL +CSV_FILE=$(FI_REPORT)/fault_batch_report.csv \
 		-l $(FI_LOG)/batch_run.log
 	@grep "FI_SUMMARY" $(FI_LOG)/batch_run.log | head -1 > $(FI_REPORT)/fault_batch_summary.txt 2>/dev/null || true
 
@@ -104,26 +107,37 @@ fi-summary:
 	fi
 
 COV_BUILD  := $(SIM_FUNC)/coverage/build
-COV_OPTS   := -cm line+tgl+cond+fsm -cm_dir $(COV_BUILD) -cm_name
+COV_VDB    := $(SIM_FUNC)/coverage/build.vdb
+COV_REPORT := $(SIM_FUNC)/coverage/urgReport
+COV_METRIC := line+tgl+cond+fsm
+COV_OPTS   := -cm $(COV_METRIC) -cm_dir $(COV_BUILD) -cm_name
+COV_SIMV   := $(COV_BUILD)/simv_cov
 
 cov-full: cov-full-comp cov-full-run cov-report
 
 cov-full-comp: dirs
 	mkdir -p $(COV_BUILD)
-	$(VCS) $(VCS_OPTS) $(COV_OPTS) full \
+	cd $(COV_BUILD) && $(VCS) $(VCS_OPTS) $(COV_OPTS) full \
 		-F $(RTL_F) \
 		$(FULL_TB) \
 		-top $(FULL_TOP) \
-		-o $(COV_BUILD)/simv_cov \
+		-o $(COV_SIMV) \
 		-l $(FUNC_LOG)/cov_compile.log
 
 cov-full-run:
-	$(COV_BUILD)/simv_cov -l $(FUNC_LOG)/cov_run.log
+	$(COV_SIMV) -l $(FUNC_LOG)/cov_run.log
 
 cov-report:
-	urg -dir $(COV_BUILD)/*.vdb -report $(SIM_FUNC)/coverage
-	@urg -dir $(COV_BUILD)/*.vdb -format both > $(SIM_FUNC)/line_coverage_summary.txt 2>/dev/null || \
-	 echo "See $(SIM_FUNC)/coverage/urgReport/index.html" > $(SIM_FUNC)/line_coverage_summary.txt
+	-urg -full64 -dir $(COV_VDB) -report $(COV_REPORT)
+	-$(COV_SIMV) -cm $(COV_METRIC) -cm_count -cm_name full \
+		-l $(FUNC_LOG)/cov_count.log > $(SIM_FUNC)/line_coverage_summary.txt 2>&1 || true
+	@if [ -f $(COV_REPORT)/index.html ]; then \
+		echo "Coverage HTML: $(COV_REPORT)/index.html"; \
+	elif [ -s $(SIM_FUNC)/line_coverage_summary.txt ]; then \
+		echo "Coverage text: $(SIM_FUNC)/line_coverage_summary.txt"; \
+	else \
+		echo "Coverage: see $(FUNC_LOG)/cov_run.log"; \
+	fi
 
 summary:
 	@echo "======================================================================"
@@ -151,6 +165,18 @@ verdi-full:
 verdi-fault:
 	$(VERDI) -ssf $(FAULT_FSDB) -sv -f $(RTL_F) $(FAULT_TB) -top $(FAULT_TOP) &
 
-clean:
-	rm -rf $(BUILD_DIR) $(WAVE_DIR)
-	rm -rf csrc simv simv.daidir *.daidir novas.* verdiLog ucli.key DVEfiles *fsdb*
+clean-work:
+	rm -rf $(WORK_DIR)
+
+clean-cov-intermediate:
+	rm -rf $(COV_BUILD)/simv_cov $(COV_BUILD)/simv_cov.daidir
+	rm -f $(COV_BUILD)/verdi_config_file
+	rm -rf $(COV_BUILD)/csrc
+
+clean-scripts-spill:
+	rm -rf $(CURDIR)/build $(CURDIR)/waves $(CURDIR)/csrc
+	rm -rf $(CURDIR)/simv $(CURDIR)/simv.daidir $(CURDIR)/*.daidir
+	rm -rf $(CURDIR)/novas.* $(CURDIR)/verdiLog $(CURDIR)/ucli.key $(CURDIR)/DVEfiles
+	rm -f $(CURDIR)/*fsdb* $(CURDIR)/.fsm.sch.verilog.xml $(CURDIR)/fault_injection_summary.txt
+
+clean: clean-work clean-cov-intermediate clean-scripts-spill

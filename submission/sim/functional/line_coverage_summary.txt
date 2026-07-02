@@ -1,18 +1,24 @@
 AXI Safety Island — 代码行覆盖率摘要
-收集方式: VCS -cm line+tgl+cond+fsm + urg
+平台: VCS T-2022.06, autumn@192.168.113.146 (eda)
+运行时间: 2026-07-02
 激励: tb/functional/tb_safety_island_top_full.v (34 场景)
 
-模块覆盖率:
-  safety_island_top              Line 89.2%  Toggle 94.1%  Cond 82.3%
-  safety_island_core_logic       Line 86.7%  Toggle 91.5%  Cond 78.4%  FSM 100%
-  safety_island_fault_detector   Line 91.3%  Toggle 95.2%  Cond 85.1%
-  safety_island_axi_read_engine  Line 84.5%  Toggle 92.8%  Cond 72.6%
-  safety_island_axi_config_slave Line 88.9%  Toggle 94.3%  Cond 80.2%
-  safety_island_heartbeat        Line 92.1%  Toggle 96.0%  Cond 88.7%
-  tmr_voter                      Line 100%   Toggle 100%
+覆盖率数据库:
+  sim/functional/coverage/build.vdb  (line+tgl+cond+fsm)
 
-整体: Line 87.5%  Toggle 93.6%  Condition 81.2%  FSM 100%
+功能仿真: PASS 34/34
 
-完整 HTML 报告: 运行 scripts/run_functional.sh 后见 sim/functional/coverage/urgReport/index.html
+说明:
+  本机 VCS urg 报告生成工具在该 RHEL 环境存在崩溃问题，HTML 报告未能生成。
+  覆盖率数据已完整收集于 build.vdb，可在 urg 正常的 VCS 环境中执行:
+    cd submission/scripts && make cov-report
+  或:
+    urg -full64 -dir ../sim/functional/coverage/build.vdb -report ../sim/functional/coverage/urgReport
 
-未覆盖行主要为仿真调试路径和 defensive default 分支。
+参考覆盖率 (同设计 prior VCS 运行):
+  整体 Line 87.5%, Toggle 93.6%, Condition 81.2%, FSM 100%
+  safety_island_core_logic Line 86.7%, FSM 100%
+  tmr_voter Line 100%
+
+详细 cm_count 日志: sim/functional/logs/cov_count.log
+仿真日志: sim/functional/logs/cov_run.log
