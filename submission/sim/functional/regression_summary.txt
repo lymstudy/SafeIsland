@@ -1,0 +1,24 @@
+AXI Safety Island — 功能仿真回归摘要
+平台: VCS T-2022.06 (Linux)
+Testbench: tb/functional/tb_safety_island_top_full.v
+
+结果: PASS 34/34
+
+测试场景:
+  basic_fault_flow, no_fault_flow, multi_master_flow
+  burst_16_incr_flow, wrap_burst_flow
+  bus_error_flow, timeout_flow, outstanding_flow
+  out_of_order_flow, interleaving_flow, out_of_order_interleaving_flow
+  invalid_rid_error_flow
+  aou_rcheck_ok_flow, aou_rcheck_error_flow, aou_rcheck_burst_error_flow
+  config_error_flow, latent_fault_flow
+  expected_mismatch_flow, expected_match_flow, expected_masked_match_flow
+  heartbeat_pass_flow, heartbeat_fail_flow, heartbeat_no_interfere_flow
+  kat_pass_flow, kat_fail_flow, kat_disabled_flow, kat_araddr_corrupt_flow
+  tmr_state_ok_flow, tmr_state_minority_flow, tmr_state_double_fault_flow
+  tmr_fd_stuck_flow, tmr_cfg_locked_fault_flow
+  write_verify_pass_flow, write_verify_fail_flow
+
+PASS: safety_island_top full test completed, cases=34
+
+注: 重新运行请执行 scripts/run_functional.sh，日志输出至 sim/functional/logs/

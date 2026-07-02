@@ -1,0 +1,20 @@
+=== 注错仿真诊断覆盖率摘要 ===
+
+保护概率 = (已纠正 + 已探知) / 错误总数
+
+Baseline (54 case):
+  FI_SUMMARY: total=54 corrected=3 detected=51 undetected=0 protection_rate=100%
+
+Batch (610 case, 全量 bit 扫描):
+  FI_SUMMARY: total=610 corrected=3 detected=607 undetected=0 protection_rate=100%
+
+Memory/寄存器注错:
+  标量寄存器 12 类目标，556 bits 逐 bit 扫描，100% 探知
+  数组条目通过结构等同论证等效覆盖
+
+数字逻辑注错:
+  22 类定向 fault site + 3 处 TMR 纠正，100% 覆盖
+
+SPFM/LFM: 见 sim/fault_injection/reports/safety_report.csv
+
+重新生成: cd submission/scripts && bash run_fault.sh

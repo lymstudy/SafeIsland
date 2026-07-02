@@ -1,0 +1,2 @@
+FI_SUMMARY: total=54 corrected=3 detected=51 undetected=0 protection_rate=100%
+PASS: safety_island fault injection campaign completed

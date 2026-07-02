@@ -1,0 +1,720 @@
+`timescale 1ns/1ps
+
+module safety_island_axi_config_slave #(
+    parameter NUM_MASTERS = 5,
+    parameter NUM_ENTRIES = 64,
+    parameter ADDR_W      = 32,
+    parameter DATA_W      = 64,
+    parameter ID_W        = 4
+) (
+    input  wire                                      clk,
+    input  wire                                      rst,
+
+    input  wire [ID_W-1:0]                           s_axi_awid,
+    input  wire [ADDR_W-1:0]                         s_axi_awaddr,
+    input  wire [7:0]                                s_axi_awlen,
+    input  wire [2:0]                                s_axi_awsize,
+    input  wire [1:0]                                s_axi_awburst,
+    input  wire                                      s_axi_awlock,
+    input  wire [3:0]                                s_axi_awcache,
+    input  wire [2:0]                                s_axi_awprot,
+    input  wire [3:0]                                s_axi_awqos,
+    input  wire                                      s_axi_awvalid,
+    output reg                                       s_axi_awready,
+
+    input  wire [DATA_W-1:0]                         s_axi_wdata,
+    input  wire [(DATA_W/8)-1:0]                     s_axi_wstrb,
+    input  wire                                      s_axi_wlast,
+    input  wire                                      s_axi_wvalid,
+    output reg                                       s_axi_wready,
+
+    output reg  [ID_W-1:0]                           s_axi_bid,
+    output reg  [1:0]                                s_axi_bresp,
+    output reg                                       s_axi_bvalid,
+    input  wire                                      s_axi_bready,
+
+    input  wire [ID_W-1:0]                           s_axi_arid,
+    input  wire [ADDR_W-1:0]                         s_axi_araddr,
+    input  wire [7:0]                                s_axi_arlen,
+    input  wire [2:0]                                s_axi_arsize,
+    input  wire [1:0]                                s_axi_arburst,
+    input  wire                                      s_axi_arlock,
+    input  wire [3:0]                                s_axi_arcache,
+    input  wire [2:0]                                s_axi_arprot,
+    input  wire [3:0]                                s_axi_arqos,
+    input  wire                                      s_axi_arvalid,
+    output reg                                       s_axi_arready,
+
+    output reg  [ID_W-1:0]                           s_axi_rid,
+    output reg  [DATA_W-1:0]                         s_axi_rdata,
+    output reg  [1:0]                                s_axi_rresp,
+    output reg                                       s_axi_rlast,
+    output reg                                       s_axi_rvalid,
+    input  wire                                      s_axi_rready,
+
+    output reg                                       enable,
+    output reg                                       scan_once,
+    output reg                                       clear_core_status,
+    output reg  [63:0]                               read_interval,
+    output reg  [NUM_MASTERS*ADDR_W-1:0]             base_addr_flat,
+    output reg  [NUM_MASTERS*NUM_ENTRIES*ADDR_W-1:0] offset_flat,
+    output reg  [NUM_MASTERS*NUM_ENTRIES*DATA_W-1:0] mask_flat,
+    output reg  [NUM_MASTERS*NUM_ENTRIES*2-1:0]      burst_type_flat,
+    output reg  [NUM_MASTERS*NUM_ENTRIES*8-1:0]      burst_len_flat,
+    output reg  [NUM_MASTERS*NUM_ENTRIES-1:0]        entry_valid_flat,
+    output reg  [NUM_MASTERS*NUM_ENTRIES*DATA_W-1:0] expected_flat,
+    output wire                                      cfg_valid,
+    output wire                                      cfg_locked,
+    output wire                                      cfg_illegal,
+    output wire                                      cfg_shadow_error,
+    output reg                                       kat_enable_out,
+    output reg  [ADDR_W-1:0]                         kat_addr_out,
+    output reg  [DATA_W-1:0]                         kat_expected_out,
+    output reg  [DATA_W-1:0]                         kat_mask_out,
+
+    input  wire                                      scan_busy,
+    input  wire                                      scan_done_pulse,
+    input  wire [31:0]                               current_master_idx,
+    input  wire [31:0]                               current_entry_idx,
+    input  wire [DATA_W-1:0]                         fault_or_result,
+    input  wire                                      external_fault_event,
+    input  wire                                      bus_fault_event,
+    input  wire                                      cfg_fault_event,
+    input  wire                                      safety_island_fault_event,
+    input  wire                                      safety_island_latent_fault_event,
+    input  wire [7:0]                                core_error_code,
+    input  wire [31:0]                               outstanding_count
+);
+
+localparam [1:0] RESP_OKAY   = 2'b00;
+localparam [1:0] RESP_SLVERR = 2'b10;
+
+localparam [ADDR_W-1:0] ADDR_CONTROL       = 32'h0000_0000;
+localparam [ADDR_W-1:0] ADDR_READ_INTERVAL = 32'h0000_0008;
+localparam [ADDR_W-1:0] ADDR_STATUS        = 32'h0000_0010;
+localparam [ADDR_W-1:0] ADDR_FAULT_RESULT  = 32'h0000_0018;
+localparam [ADDR_W-1:0] ADDR_ERROR_CODE    = 32'h0000_0020;
+localparam [ADDR_W-1:0] ADDR_INDEX_STATUS  = 32'h0000_0028;
+localparam [ADDR_W-1:0] ADDR_OUTSTANDING   = 32'h0000_0030;
+localparam [ADDR_W-1:0] ADDR_BASE_REGION   = 32'h0000_0100;
+localparam [ADDR_W-1:0] ADDR_ENTRY_REGION  = 32'h0000_1000;
+localparam [ADDR_W-1:0] BASE_STRIDE        = 32'h0000_0008;
+localparam [ADDR_W-1:0] ENTRY_MASTER_STRIDE= 32'h0000_1000;
+localparam [ADDR_W-1:0] ENTRY_STRIDE       = 32'h0000_0020;
+localparam [ADDR_W-1:0] ENTRY_OFFSET_OFF   = 32'h0000_0000;
+localparam [ADDR_W-1:0] ENTRY_MASK_OFF     = 32'h0000_0008;
+localparam [ADDR_W-1:0] ENTRY_BURST_OFF    = 32'h0000_0010;
+localparam [ADDR_W-1:0] ENTRY_EXPECTED_OFF = 32'h0000_0018;
+localparam [ADDR_W-1:0] ADDR_KAT_CTRL     = 32'h0000_0038;
+localparam [ADDR_W-1:0] ADDR_KAT_ADDR     = 32'h0000_0040;
+localparam [ADDR_W-1:0] ADDR_KAT_EXPECTED = 32'h0000_0048;
+localparam [ADDR_W-1:0] ADDR_KAT_MASK     = 32'h0000_0050;
+
+reg [ADDR_W-1:0] awaddr_q;
+reg [ID_W-1:0]   awid_q;
+reg [7:0]        awlen_q;
+reg [2:0]        awsize_q;
+reg [1:0]        awburst_q;
+reg              aw_seen_q;
+reg [DATA_W-1:0] wdata_q;
+reg [(DATA_W/8)-1:0] wstrb_q;
+reg              wlast_q;
+reg              w_seen_q;
+
+reg cfg_locked_r_a, cfg_locked_r_b, cfg_locked_r_c;
+wire cfg_locked_r;
+
+assign cfg_locked_r = (cfg_locked_r_a & cfg_locked_r_b) |
+                      (cfg_locked_r_b & cfg_locked_r_c) |
+                      (cfg_locked_r_a & cfg_locked_r_c);
+
+reg cfg_illegal_r_a, cfg_illegal_r_b, cfg_illegal_r_c;
+wire cfg_illegal_r;
+
+assign cfg_illegal_r = (cfg_illegal_r_a & cfg_illegal_r_b) |
+                       (cfg_illegal_r_b & cfg_illegal_r_c) |
+                       (cfg_illegal_r_a & cfg_illegal_r_c);
+
+reg scan_done_sticky;
+reg write_verify_pending;
+
+reg enable_inv;
+reg cfg_locked_inv;
+reg cfg_illegal_inv;
+reg [63:0] read_interval_inv;
+
+// TMR shadow copies for enable
+reg enable_shadow_b, enable_shadow_c;
+wire enable_tmr_mismatch;
+assign enable_tmr_mismatch = (enable ^ enable_shadow_b) |
+                             (enable ^ enable_shadow_c) |
+                             (enable_shadow_b ^ enable_shadow_c);
+
+// TMR mismatch detection for cfg_locked_r and cfg_illegal_r
+wire cfg_locked_tmr_mismatch;
+wire cfg_illegal_tmr_mismatch;
+
+assign cfg_locked_tmr_mismatch  = (cfg_locked_r_a  ^ cfg_locked_r_b) |
+                                  (cfg_locked_r_a  ^ cfg_locked_r_c) |
+                                  (cfg_locked_r_b  ^ cfg_locked_r_c);
+assign cfg_illegal_tmr_mismatch = (cfg_illegal_r_a ^ cfg_illegal_r_b) |
+                                  (cfg_illegal_r_a ^ cfg_illegal_r_c) |
+                                  (cfg_illegal_r_b ^ cfg_illegal_r_c);
+
+reg [ADDR_W-1:0] base_addr_q     [0:NUM_MASTERS-1];
+reg [ADDR_W-1:0] base_addr_inv_q [0:NUM_MASTERS-1];
+
+reg [ADDR_W-1:0] offset_q        [0:NUM_MASTERS*NUM_ENTRIES-1];
+reg [ADDR_W-1:0] offset_inv_q    [0:NUM_MASTERS*NUM_ENTRIES-1];
+reg [DATA_W-1:0] mask_q          [0:NUM_MASTERS*NUM_ENTRIES-1];
+reg [DATA_W-1:0] mask_inv_q      [0:NUM_MASTERS*NUM_ENTRIES-1];
+reg [1:0]        burst_type_q    [0:NUM_MASTERS*NUM_ENTRIES-1];
+reg [1:0]        burst_type_inv_q[0:NUM_MASTERS*NUM_ENTRIES-1];
+reg [7:0]        burst_len_q     [0:NUM_MASTERS*NUM_ENTRIES-1];
+reg [7:0]        burst_len_inv_q [0:NUM_MASTERS*NUM_ENTRIES-1];
+reg              entry_valid_q   [0:NUM_MASTERS*NUM_ENTRIES-1];
+reg              entry_valid_inv_q[0:NUM_MASTERS*NUM_ENTRIES-1];
+reg [DATA_W-1:0] expected_q      [0:NUM_MASTERS*NUM_ENTRIES-1];
+reg [DATA_W-1:0] expected_inv_q  [0:NUM_MASTERS*NUM_ENTRIES-1];
+
+reg              kat_enable;
+reg              kat_enable_inv;
+reg [ADDR_W-1:0] kat_addr;
+reg [ADDR_W-1:0] kat_addr_inv;
+reg [DATA_W-1:0] kat_expected;
+reg [DATA_W-1:0] kat_expected_inv;
+reg [DATA_W-1:0] kat_mask;
+reg [DATA_W-1:0] kat_mask_inv;
+
+integer flat_m;
+integer flat_idx;
+integer shadow_m_a;
+integer shadow_idx_a;
+integer shadow_m_b;
+integer shadow_idx_b;
+integer shadow_m_c;
+integer shadow_idx_c;
+integer read_m;
+integer read_e;
+integer read_idx;
+integer seq_m;
+integer seq_e;
+integer seq_idx;
+
+wire aw_fire;
+wire w_fire;
+wire ar_fire;
+wire write_ready_comb;
+wire [ADDR_W-1:0] write_addr_comb;
+wire [ID_W-1:0]   write_id_comb;
+wire [7:0]        write_len_comb;
+wire [2:0]        write_size_comb;
+wire [1:0]        write_burst_comb;
+wire [DATA_W-1:0] write_data_comb;
+wire [(DATA_W/8)-1:0] write_strb_comb;
+wire write_last_comb;
+
+(* DONT_TOUCH = "TRUE" *) reg shadow_error_comb_a;
+(* DONT_TOUCH = "TRUE" *) reg shadow_error_comb_b;
+(* DONT_TOUCH = "TRUE" *) reg shadow_error_comb_c;
+wire shadow_error_comb;
+reg [DATA_W-1:0] read_data_comb;
+reg [1:0] read_resp_comb;
+reg [1:0] write_resp_comb;
+reg [DATA_W-1:0] merged_write;
+
+assign cfg_valid        = cfg_locked_r;
+assign cfg_locked       = cfg_locked_r;
+assign cfg_illegal      = cfg_illegal_r;
+wire cfg_shadow_error_voted;
+wire cfg_shadow_error_tmr_err;
+
+tmr_voter #(1) u_cfg_shadow_tmr (
+    .a(shadow_error_comb_a), .b(shadow_error_comb_b), .c(shadow_error_comb_c),
+    .voted(cfg_shadow_error_voted), .mismatch(cfg_shadow_error_tmr_err)
+);
+assign shadow_error_comb = cfg_shadow_error_voted | cfg_shadow_error_tmr_err;
+assign cfg_shadow_error = shadow_error_comb;
+
+assign aw_fire = s_axi_awvalid & s_axi_awready;
+assign w_fire  = s_axi_wvalid  & s_axi_wready;
+assign ar_fire = s_axi_arvalid & s_axi_arready;
+
+assign write_ready_comb = (aw_seen_q | aw_fire) & (w_seen_q | w_fire) & !s_axi_bvalid;
+assign write_addr_comb  = aw_fire ? s_axi_awaddr : awaddr_q;
+assign write_id_comb    = aw_fire ? s_axi_awid   : awid_q;
+assign write_len_comb   = aw_fire ? s_axi_awlen   : awlen_q;
+assign write_size_comb  = aw_fire ? s_axi_awsize  : awsize_q;
+assign write_burst_comb = aw_fire ? s_axi_awburst : awburst_q;
+assign write_data_comb  = w_fire  ? s_axi_wdata  : wdata_q;
+assign write_strb_comb  = w_fire  ? s_axi_wstrb  : wstrb_q;
+assign write_last_comb  = w_fire  ? s_axi_wlast  : wlast_q;
+
+function [DATA_W-1:0] apply_wstrb;
+    input [DATA_W-1:0] old_value;
+    input [DATA_W-1:0] new_value;
+    input [(DATA_W/8)-1:0] strb;
+    integer b;
+begin
+    apply_wstrb = old_value;
+    for (b = 0; b < (DATA_W/8); b = b + 1) begin
+        if (strb[b])
+            apply_wstrb[8*b +: 8] = new_value[8*b +: 8];
+    end
+end
+endfunction
+
+function [DATA_W-1:0] control_read_value;
+    input dummy;
+begin
+    control_read_value = {DATA_W{1'b0}};
+    control_read_value[0] = enable;
+    control_read_value[3] = cfg_locked_r;
+    control_read_value[8] = cfg_illegal_r;
+end
+endfunction
+
+function [DATA_W-1:0] burst_read_value;
+    input integer entry_index;
+begin
+    burst_read_value = {DATA_W{1'b0}};
+    burst_read_value[1:0]  = burst_type_q[entry_index];
+    burst_read_value[15:8] = burst_len_q[entry_index];
+    burst_read_value[16]   = entry_valid_q[entry_index];
+end
+endfunction
+
+always @* begin
+    for (flat_m = 0; flat_m < NUM_MASTERS; flat_m = flat_m + 1) begin
+        base_addr_flat[flat_m*ADDR_W +: ADDR_W] = base_addr_q[flat_m];
+    end
+
+    for (flat_idx = 0; flat_idx < NUM_MASTERS*NUM_ENTRIES; flat_idx = flat_idx + 1) begin
+        offset_flat[flat_idx*ADDR_W +: ADDR_W] = offset_q[flat_idx];
+        mask_flat[flat_idx*DATA_W +: DATA_W] = mask_q[flat_idx];
+        burst_type_flat[flat_idx*2 +: 2] = burst_type_q[flat_idx];
+        burst_len_flat[flat_idx*8 +: 8] = burst_len_q[flat_idx];
+        entry_valid_flat[flat_idx] = entry_valid_q[flat_idx];
+        expected_flat[flat_idx*DATA_W +: DATA_W] = expected_q[flat_idx];
+
+        kat_enable_out   = kat_enable;
+        kat_addr_out     = kat_addr;
+        kat_expected_out = kat_expected;
+        kat_mask_out     = kat_mask;
+    end
+end
+
+always @* begin
+    shadow_error_comb_a = (enable_inv != ~enable) |
+                        (cfg_locked_inv != ~cfg_locked_r) |
+                        (cfg_illegal_inv != ~cfg_illegal_r) |
+                        (read_interval_inv != ~read_interval);
+
+    if (cfg_locked_tmr_mismatch || cfg_illegal_tmr_mismatch || enable_tmr_mismatch)
+        shadow_error_comb_a = 1'b1;
+
+    for (shadow_m_a = 0; shadow_m_a < NUM_MASTERS; shadow_m_a = shadow_m_a + 1) begin
+        if (base_addr_inv_q[shadow_m_a] != ~base_addr_q[shadow_m_a])
+            shadow_error_comb_a = 1'b1;
+    end
+
+    for (shadow_idx_a = 0; shadow_idx_a < NUM_MASTERS*NUM_ENTRIES; shadow_idx_a = shadow_idx_a + 1) begin
+        if ((offset_inv_q[shadow_idx_a] != ~offset_q[shadow_idx_a]) ||
+            (mask_inv_q[shadow_idx_a] != ~mask_q[shadow_idx_a]) ||
+            (burst_type_inv_q[shadow_idx_a] != ~burst_type_q[shadow_idx_a]) ||
+            (burst_len_inv_q[shadow_idx_a] != ~burst_len_q[shadow_idx_a]) ||
+            (entry_valid_inv_q[shadow_idx_a] != ~entry_valid_q[shadow_idx_a]) ||
+            (expected_inv_q[shadow_idx_a] != ~expected_q[shadow_idx_a]))
+            shadow_error_comb_a = 1'b1;
+    end
+
+    if ((kat_enable_inv != ~kat_enable) ||
+        (kat_addr_inv != ~kat_addr) ||
+        (kat_expected_inv != ~kat_expected) ||
+        (kat_mask_inv != ~kat_mask))
+        shadow_error_comb_a = 1'b1;
+end
+
+always @* begin
+    shadow_error_comb_b = (enable_inv != ~enable) |
+                        (cfg_locked_inv != ~cfg_locked_r) |
+                        (cfg_illegal_inv != ~cfg_illegal_r) |
+                        (read_interval_inv != ~read_interval);
+
+    if (cfg_locked_tmr_mismatch || cfg_illegal_tmr_mismatch || enable_tmr_mismatch)
+        shadow_error_comb_b = 1'b1;
+
+    for (shadow_m_b = 0; shadow_m_b < NUM_MASTERS; shadow_m_b = shadow_m_b + 1) begin
+        if (base_addr_inv_q[shadow_m_b] != ~base_addr_q[shadow_m_b])
+            shadow_error_comb_b = 1'b1;
+    end
+
+    for (shadow_idx_b = 0; shadow_idx_b < NUM_MASTERS*NUM_ENTRIES; shadow_idx_b = shadow_idx_b + 1) begin
+        if ((offset_inv_q[shadow_idx_b] != ~offset_q[shadow_idx_b]) ||
+            (mask_inv_q[shadow_idx_b] != ~mask_q[shadow_idx_b]) ||
+            (burst_type_inv_q[shadow_idx_b] != ~burst_type_q[shadow_idx_b]) ||
+            (burst_len_inv_q[shadow_idx_b] != ~burst_len_q[shadow_idx_b]) ||
+            (entry_valid_inv_q[shadow_idx_b] != ~entry_valid_q[shadow_idx_b]) ||
+            (expected_inv_q[shadow_idx_b] != ~expected_q[shadow_idx_b]))
+            shadow_error_comb_b = 1'b1;
+    end
+
+    if ((kat_enable_inv != ~kat_enable) ||
+        (kat_addr_inv != ~kat_addr) ||
+        (kat_expected_inv != ~kat_expected) ||
+        (kat_mask_inv != ~kat_mask))
+        shadow_error_comb_b = 1'b1;
+end
+
+always @* begin
+    shadow_error_comb_c = (enable_inv != ~enable) |
+                        (cfg_locked_inv != ~cfg_locked_r) |
+                        (cfg_illegal_inv != ~cfg_illegal_r) |
+                        (read_interval_inv != ~read_interval);
+
+    if (cfg_locked_tmr_mismatch || cfg_illegal_tmr_mismatch || enable_tmr_mismatch)
+        shadow_error_comb_c = 1'b1;
+
+    for (shadow_m_c = 0; shadow_m_c < NUM_MASTERS; shadow_m_c = shadow_m_c + 1) begin
+        if (base_addr_inv_q[shadow_m_c] != ~base_addr_q[shadow_m_c])
+            shadow_error_comb_c = 1'b1;
+    end
+
+    for (shadow_idx_c = 0; shadow_idx_c < NUM_MASTERS*NUM_ENTRIES; shadow_idx_c = shadow_idx_c + 1) begin
+        if ((offset_inv_q[shadow_idx_c] != ~offset_q[shadow_idx_c]) ||
+            (mask_inv_q[shadow_idx_c] != ~mask_q[shadow_idx_c]) ||
+            (burst_type_inv_q[shadow_idx_c] != ~burst_type_q[shadow_idx_c]) ||
+            (burst_len_inv_q[shadow_idx_c] != ~burst_len_q[shadow_idx_c]) ||
+            (entry_valid_inv_q[shadow_idx_c] != ~entry_valid_q[shadow_idx_c]) ||
+            (expected_inv_q[shadow_idx_c] != ~expected_q[shadow_idx_c]))
+            shadow_error_comb_c = 1'b1;
+    end
+
+    if ((kat_enable_inv != ~kat_enable) ||
+        (kat_addr_inv != ~kat_addr) ||
+        (kat_expected_inv != ~kat_expected) ||
+        (kat_mask_inv != ~kat_mask))
+        shadow_error_comb_c = 1'b1;
+end
+
+always @* begin
+    read_data_comb = {DATA_W{1'b0}};
+    read_resp_comb = RESP_OKAY;
+
+    if (s_axi_arlen != 8'd0 || s_axi_arsize != 3'd3 || s_axi_arburst != 2'b01) begin
+        read_resp_comb = RESP_SLVERR;
+    end else if (s_axi_araddr[ADDR_W-1:0] == ADDR_CONTROL) begin
+        read_data_comb = control_read_value(1'b0);
+    end else if (s_axi_araddr[ADDR_W-1:0] == ADDR_READ_INTERVAL) begin
+        read_data_comb = read_interval;
+    end else if (s_axi_araddr[ADDR_W-1:0] == ADDR_STATUS) begin
+        read_data_comb = {DATA_W{1'b0}};
+        read_data_comb[0] = scan_busy;
+        read_data_comb[1] = scan_done_sticky | scan_done_pulse;
+        read_data_comb[2] = external_fault_event;
+        read_data_comb[3] = bus_fault_event;
+        read_data_comb[4] = cfg_fault_event;
+        read_data_comb[5] = safety_island_fault_event;
+        read_data_comb[6] = safety_island_latent_fault_event;
+    end else if (s_axi_araddr[ADDR_W-1:0] == ADDR_FAULT_RESULT) begin
+        read_data_comb = fault_or_result;
+    end else if (s_axi_araddr[ADDR_W-1:0] == ADDR_ERROR_CODE) begin
+        read_data_comb = {{(DATA_W-8){1'b0}}, core_error_code};
+    end else if (s_axi_araddr[ADDR_W-1:0] == ADDR_INDEX_STATUS) begin
+        read_data_comb = {current_master_idx, current_entry_idx};
+    end else if (s_axi_araddr[ADDR_W-1:0] == ADDR_OUTSTANDING) begin
+        read_data_comb = {{(DATA_W-32){1'b0}}, outstanding_count};
+    end else if (s_axi_araddr[ADDR_W-1:0] == ADDR_KAT_CTRL) begin
+        read_data_comb = {{(DATA_W-1){1'b0}}, kat_enable};
+    end else if ((s_axi_araddr[ADDR_W-1:0] >= ADDR_BASE_REGION) &&
+                 (s_axi_araddr[ADDR_W-1:0] < (ADDR_BASE_REGION + NUM_MASTERS*BASE_STRIDE))) begin
+        read_m = (s_axi_araddr[ADDR_W-1:0] - ADDR_BASE_REGION) / BASE_STRIDE;
+        read_data_comb = {{(DATA_W-ADDR_W){1'b0}}, base_addr_q[read_m]};
+    end else if ((s_axi_araddr[ADDR_W-1:0] >= ADDR_ENTRY_REGION) &&
+                 (s_axi_araddr[ADDR_W-1:0] < (ADDR_ENTRY_REGION + NUM_MASTERS*ENTRY_MASTER_STRIDE))) begin
+        read_m = (s_axi_araddr[ADDR_W-1:0] - ADDR_ENTRY_REGION) / ENTRY_MASTER_STRIDE;
+        read_e = ((s_axi_araddr[ADDR_W-1:0] - ADDR_ENTRY_REGION) % ENTRY_MASTER_STRIDE) / ENTRY_STRIDE;
+        read_idx = (read_m * NUM_ENTRIES) + read_e;
+
+        if ((read_m < NUM_MASTERS) && (read_e < NUM_ENTRIES)) begin
+            case (((s_axi_araddr[ADDR_W-1:0] - ADDR_ENTRY_REGION) % ENTRY_MASTER_STRIDE) % ENTRY_STRIDE)
+                ENTRY_OFFSET_OFF: read_data_comb = {{(DATA_W-ADDR_W){1'b0}}, offset_q[read_idx]};
+                ENTRY_MASK_OFF:   read_data_comb = mask_q[read_idx];
+                ENTRY_BURST_OFF:  read_data_comb = burst_read_value(read_idx);
+                ENTRY_EXPECTED_OFF: read_data_comb = expected_q[read_idx];
+                default: begin
+                    read_data_comb = {DATA_W{1'b0}};
+                    read_resp_comb = RESP_SLVERR;
+                end
+            endcase
+        end else begin
+            read_resp_comb = RESP_SLVERR;
+        end
+    end else if (s_axi_araddr[ADDR_W-1:0] == ADDR_KAT_ADDR) begin
+        read_data_comb = {{(DATA_W-ADDR_W){1'b0}}, kat_addr};
+    end else if (s_axi_araddr[ADDR_W-1:0] == ADDR_KAT_EXPECTED) begin
+        read_data_comb = kat_expected;
+    end else if (s_axi_araddr[ADDR_W-1:0] == ADDR_KAT_MASK) begin
+        read_data_comb = kat_mask;
+    end else begin
+        read_resp_comb = RESP_SLVERR;
+    end
+end
+
+always @(posedge clk) begin
+    if (rst) begin
+        s_axi_awready     <= 1'b1;
+        s_axi_wready      <= 1'b1;
+        s_axi_bvalid      <= 1'b0;
+        s_axi_bresp       <= RESP_OKAY;
+        s_axi_bid         <= {ID_W{1'b0}};
+        s_axi_arready     <= 1'b1;
+        s_axi_rvalid      <= 1'b0;
+        s_axi_rdata       <= {DATA_W{1'b0}};
+        s_axi_rresp       <= RESP_OKAY;
+        s_axi_rid         <= {ID_W{1'b0}};
+        s_axi_rlast       <= 1'b0;
+        awaddr_q          <= {ADDR_W{1'b0}};
+        awid_q            <= {ID_W{1'b0}};
+        awlen_q           <= 8'd0;
+        awsize_q          <= 3'd0;
+        awburst_q         <= 2'b01;
+        aw_seen_q         <= 1'b0;
+        wdata_q           <= {DATA_W{1'b0}};
+        wstrb_q           <= {(DATA_W/8){1'b0}};
+        wlast_q           <= 1'b0;
+        w_seen_q          <= 1'b0;
+        enable            <= 1'b0;
+        enable_shadow_b   <= 1'b0;
+        enable_shadow_c   <= 1'b0;
+        enable_inv        <= 1'b1;
+        scan_once         <= 1'b0;
+        clear_core_status <= 1'b0;
+        read_interval     <= 64'd0;
+        read_interval_inv <= {64{1'b1}};
+        cfg_locked_r_a    <= 1'b0;
+        cfg_locked_r_b    <= 1'b0;
+        cfg_locked_r_c    <= 1'b0;
+        cfg_locked_inv    <= 1'b1;
+        cfg_illegal_r_a   <= 1'b0;
+        cfg_illegal_r_b   <= 1'b0;
+        cfg_illegal_r_c   <= 1'b0;
+        cfg_illegal_inv   <= 1'b1;
+        scan_done_sticky  <= 1'b0;
+        write_verify_pending <= 1'b0;
+
+        for (seq_m = 0; seq_m < NUM_MASTERS; seq_m = seq_m + 1) begin
+            base_addr_q[seq_m]     <= {ADDR_W{1'b0}};
+            base_addr_inv_q[seq_m] <= {ADDR_W{1'b1}};
+        end
+
+        for (seq_idx = 0; seq_idx < NUM_MASTERS*NUM_ENTRIES; seq_idx = seq_idx + 1) begin
+            offset_q[seq_idx]         <= {ADDR_W{1'b0}};
+            offset_inv_q[seq_idx]     <= {ADDR_W{1'b1}};
+            mask_q[seq_idx]           <= {DATA_W{1'b0}};
+            mask_inv_q[seq_idx]       <= {DATA_W{1'b1}};
+            burst_type_q[seq_idx]     <= 2'b01;
+            burst_type_inv_q[seq_idx] <= ~2'b01;
+            burst_len_q[seq_idx]      <= 8'd0;
+            burst_len_inv_q[seq_idx]  <= {8{1'b1}};
+            entry_valid_q[seq_idx]    <= 1'b0;
+            entry_valid_inv_q[seq_idx]<= 1'b1;
+            expected_q[seq_idx]      <= {DATA_W{1'b0}};
+            expected_inv_q[seq_idx]  <= {DATA_W{1'b1}};
+
+        kat_enable      <= 1'b0;
+        kat_enable_inv  <= 1'b1;
+        kat_addr        <= {ADDR_W{1'b0}};
+        kat_addr_inv    <= {ADDR_W{1'b1}};
+        kat_expected    <= {DATA_W{1'b0}};
+        kat_expected_inv<= {DATA_W{1'b1}};
+        kat_mask        <= {DATA_W{1'b0}};
+        kat_mask_inv    <= {DATA_W{1'b1}};
+        end
+    end else begin
+        scan_once         <= 1'b0;
+        clear_core_status <= 1'b0;
+
+        if (scan_done_pulse)
+            scan_done_sticky <= 1'b1;
+
+        if (aw_fire) begin
+            awaddr_q  <= s_axi_awaddr;
+            awid_q    <= s_axi_awid;
+            awlen_q   <= s_axi_awlen;
+            awsize_q  <= s_axi_awsize;
+            awburst_q <= s_axi_awburst;
+            aw_seen_q <= 1'b1;
+        end
+
+        if (w_fire) begin
+            wdata_q  <= s_axi_wdata;
+            wstrb_q  <= s_axi_wstrb;
+            wlast_q  <= s_axi_wlast;
+            w_seen_q <= 1'b1;
+        end
+
+        if (write_ready_comb) begin
+            write_resp_comb = RESP_OKAY;
+
+            if (write_len_comb != 8'd0 || write_size_comb != 3'd3 ||
+                write_burst_comb != 2'b01 || !write_last_comb) begin
+                write_resp_comb  = RESP_SLVERR;
+                cfg_illegal_r_a  <= 1'b1;
+                cfg_illegal_r_b  <= 1'b1;
+                cfg_illegal_r_c  <= 1'b1;
+                cfg_illegal_inv  <= 1'b0;
+            end else if (write_addr_comb == ADDR_CONTROL) begin
+                merged_write = apply_wstrb(control_read_value(1'b0), write_data_comb, write_strb_comb);
+                if (merged_write[0] != enable) begin
+                    enable          <= merged_write[0];
+                    enable_shadow_b <= merged_write[0];
+                    enable_shadow_c <= merged_write[0];
+                    enable_inv      <= ~merged_write[0];
+                end
+                if (merged_write[1])
+                    scan_once <= 1'b1;
+                if (merged_write[2]) begin
+                    clear_core_status <= 1'b1;
+                    cfg_illegal_r_a   <= 1'b0;
+                    cfg_illegal_r_b   <= 1'b0;
+                    cfg_illegal_r_c   <= 1'b0;
+                    cfg_illegal_inv   <= 1'b1;
+                    scan_done_sticky  <= 1'b0;
+                end
+                if (merged_write[3]) begin
+                    cfg_locked_r_a <= 1'b1;
+                    cfg_locked_r_b <= 1'b1;
+                    cfg_locked_r_c <= 1'b1;
+                    cfg_locked_inv <= 1'b0;
+                end
+            end else if (cfg_locked_r) begin
+                write_resp_comb  = RESP_SLVERR;
+                cfg_illegal_r_a  <= 1'b1;
+                cfg_illegal_r_b  <= 1'b1;
+                cfg_illegal_r_c  <= 1'b1;
+                cfg_illegal_inv  <= 1'b0;
+            end else if (write_addr_comb == ADDR_READ_INTERVAL) begin
+                merged_write      = apply_wstrb(read_interval, write_data_comb, write_strb_comb);
+                read_interval     <= merged_write;
+                read_interval_inv <= ~merged_write;
+            end else if (write_addr_comb == ADDR_KAT_CTRL) begin
+                merged_write = apply_wstrb({{(DATA_W-1){1'b0}}, kat_enable}, write_data_comb, write_strb_comb);
+                kat_enable     <= merged_write[0];
+                kat_enable_inv <= ~merged_write[0];
+            end else if (write_addr_comb == ADDR_KAT_ADDR) begin
+                merged_write  = apply_wstrb({{(DATA_W-ADDR_W){1'b0}}, kat_addr}, write_data_comb, write_strb_comb);
+                kat_addr      <= merged_write[ADDR_W-1:0];
+                kat_addr_inv  <= ~merged_write[ADDR_W-1:0];
+            end else if (write_addr_comb == ADDR_KAT_EXPECTED) begin
+                merged_write      = apply_wstrb(kat_expected, write_data_comb, write_strb_comb);
+                kat_expected      <= merged_write;
+                kat_expected_inv  <= ~merged_write;
+            end else if (write_addr_comb == ADDR_KAT_MASK) begin
+                merged_write  = apply_wstrb(kat_mask, write_data_comb, write_strb_comb);
+                kat_mask      <= merged_write;
+                kat_mask_inv  <= ~merged_write;
+            end else if ((write_addr_comb >= ADDR_BASE_REGION) &&
+                         (write_addr_comb < (ADDR_BASE_REGION + NUM_MASTERS*BASE_STRIDE))) begin
+                seq_m = (write_addr_comb - ADDR_BASE_REGION) / BASE_STRIDE;
+                merged_write           = apply_wstrb({{(DATA_W-ADDR_W){1'b0}}, base_addr_q[seq_m]}, write_data_comb, write_strb_comb);
+                base_addr_q[seq_m]     <= merged_write[ADDR_W-1:0];
+                base_addr_inv_q[seq_m] <= ~merged_write[ADDR_W-1:0];
+            end else if ((write_addr_comb >= ADDR_ENTRY_REGION) &&
+                         (write_addr_comb < (ADDR_ENTRY_REGION + NUM_MASTERS*ENTRY_MASTER_STRIDE))) begin
+                seq_m = (write_addr_comb - ADDR_ENTRY_REGION) / ENTRY_MASTER_STRIDE;
+                seq_e = ((write_addr_comb - ADDR_ENTRY_REGION) % ENTRY_MASTER_STRIDE) / ENTRY_STRIDE;
+                seq_idx = (seq_m * NUM_ENTRIES) + seq_e;
+
+                if ((seq_m < NUM_MASTERS) && (seq_e < NUM_ENTRIES)) begin
+                    case (((write_addr_comb - ADDR_ENTRY_REGION) % ENTRY_MASTER_STRIDE) % ENTRY_STRIDE)
+                        ENTRY_OFFSET_OFF: begin
+                            merged_write           = apply_wstrb({{(DATA_W-ADDR_W){1'b0}}, offset_q[seq_idx]}, write_data_comb, write_strb_comb);
+                            offset_q[seq_idx]      <= merged_write[ADDR_W-1:0];
+                            offset_inv_q[seq_idx]  <= ~merged_write[ADDR_W-1:0];
+                        end
+                        ENTRY_MASK_OFF: begin
+                            merged_write           = apply_wstrb(mask_q[seq_idx], write_data_comb, write_strb_comb);
+                            mask_q[seq_idx]        <= merged_write;
+                            mask_inv_q[seq_idx]    <= ~merged_write;
+                        end
+                        ENTRY_BURST_OFF: begin
+                            merged_write                = apply_wstrb(burst_read_value(seq_idx), write_data_comb, write_strb_comb);
+                            burst_type_q[seq_idx]      <= merged_write[1:0];
+                            burst_type_inv_q[seq_idx]  <= ~merged_write[1:0];
+                            burst_len_q[seq_idx]       <= merged_write[15:8];
+                            burst_len_inv_q[seq_idx]   <= ~merged_write[15:8];
+                            entry_valid_q[seq_idx]     <= merged_write[16];
+                            entry_valid_inv_q[seq_idx] <= ~merged_write[16];
+                        end
+                        ENTRY_EXPECTED_OFF: begin
+                            merged_write              = apply_wstrb(expected_q[seq_idx], write_data_comb, write_strb_comb);
+                            expected_q[seq_idx]       <= merged_write;
+                            expected_inv_q[seq_idx]   <= ~merged_write;
+                        end
+                        default: begin
+                            write_resp_comb  = RESP_SLVERR;
+                            cfg_illegal_r_a  <= 1'b1;
+                            cfg_illegal_r_b  <= 1'b1;
+                            cfg_illegal_r_c  <= 1'b1;
+                            cfg_illegal_inv  <= 1'b0;
+                        end
+                    endcase
+                end else begin
+                    write_resp_comb  = RESP_SLVERR;
+                    cfg_illegal_r_a  <= 1'b1;
+                    cfg_illegal_r_b  <= 1'b1;
+                    cfg_illegal_r_c  <= 1'b1;
+                    cfg_illegal_inv  <= 1'b0;
+                end
+            end else begin
+                write_resp_comb  = RESP_SLVERR;
+                cfg_illegal_r_a  <= 1'b1;
+                cfg_illegal_r_b  <= 1'b1;
+                cfg_illegal_r_c  <= 1'b1;
+                cfg_illegal_inv  <= 1'b0;
+            end
+
+            // Write-verify: check shadow consistency after write
+            if (shadow_error_comb && write_resp_comb == RESP_OKAY) begin
+                write_resp_comb = RESP_SLVERR;
+                cfg_illegal_r_a <= 1'b1;
+                cfg_illegal_r_b <= 1'b1;
+                cfg_illegal_r_c <= 1'b1;
+                cfg_illegal_inv <= 1'b0;
+            end
+
+            s_axi_bid     <= write_id_comb;
+            s_axi_bresp   <= write_resp_comb;
+            s_axi_bvalid  <= 1'b1;
+            s_axi_awready <= 1'b0;
+            s_axi_wready  <= 1'b0;
+            aw_seen_q     <= 1'b0;
+            w_seen_q      <= 1'b0;
+        end else if (s_axi_bvalid && s_axi_bready) begin
+            s_axi_bvalid  <= 1'b0;
+            s_axi_awready <= 1'b1;
+            s_axi_wready  <= 1'b1;
+        end else if (!s_axi_bvalid) begin
+            s_axi_awready <= !(aw_seen_q | aw_fire);
+            s_axi_wready  <= !(w_seen_q | w_fire);
+        end
+
+        if (ar_fire) begin
+            s_axi_rid    <= s_axi_arid;
+            s_axi_rdata  <= read_data_comb;
+            s_axi_rresp  <= read_resp_comb;
+            s_axi_rlast  <= 1'b1;
+            s_axi_rvalid <= 1'b1;
+            s_axi_arready<= 1'b0;
+        end else if (s_axi_rvalid && s_axi_rready) begin
+            s_axi_rvalid <= 1'b0;
+            s_axi_rlast  <= 1'b0;
+            s_axi_arready<= 1'b1;
+        end else if (!s_axi_rvalid) begin
+            s_axi_arready<= 1'b1;
+        end
+    end
+end
+
+endmodule

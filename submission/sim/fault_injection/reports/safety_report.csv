@@ -1,0 +1,19 @@
+Metric,Value,ASIL-D Target,Status
+Total Faults,22,,
+Detected,22,,
+Corrected,0,,
+Safe / No effect,0,,
+Undetected,0,,
+Campaign Diagnostic Coverage,100.00%,,PASS
+SPFM formal calculation,Not derived from campaign alone,>= 99.00%,N/A
+LFM formal calculation,Not derived from campaign alone,>= 90.00%,N/A
+
+Result,Count
+detected,22
+
+Type,Count
+config_register,7
+core_register,6
+port_interface,5
+safety_self_test,1
+transient,3
