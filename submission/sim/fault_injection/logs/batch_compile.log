@@ -1,0 +1,63 @@
+Command: vcs -full64 -sverilog -debug_access+all -kdb +define+FSDB +define+FI_ARRAY_BIT_TARGETS \
+-timescale=1ns/1ps -F /home/autumn/Desktop/submission/rtl/safety_island_top.f /home/autumn/Desktop/submission/tb/fault_injection/tb_safety_island_fault_injection.v \
+-top tb_safety_island_fault_injection -o /home/autumn/Desktop/submission/scripts/build/simv_batch \
+-l /home/autumn/Desktop/submission/sim/fault_injection/logs/batch_compile.log
+                         Chronologic VCS (TM)
+         Version T-2022.06_Full64 -- Thu Jul  2 13:14:52 2026
+
+                    Copyright (c) 1991 - 2022 Synopsys, Inc.
+   This software and the associated documentation are proprietary to Synopsys,
+ Inc. This software may only be used in accordance with the terms and conditions
+ of a written license agreement with Synopsys, Inc. All other use, reproduction,
+   or distribution of this software is strictly prohibited.  Licensed Products
+     communicate with Synopsys servers for the purpose of providing software
+    updates, detecting software piracy and verifying that customers are using
+    Licensed Products in conformity with the applicable License Key for such
+  Licensed Products. Synopsys will use information gathered in connection with
+    this process to deliver software updates and pursue software pirates and
+                                   infringers.
+
+ Inclusivity & Diversity - Visit SolvNetPlus to read the "Synopsys Statement on
+            Inclusivity and Diversity" (Refer to article 000036315 at
+                        https://solvnetplus.synopsys.com)
+
+Parsing design file '/home/autumn/Desktop/submission/rtl/tmr_voter.v'
+Parsing design file '/home/autumn/Desktop/submission/rtl/safety_island_axi_read_engine.v'
+Parsing design file '/home/autumn/Desktop/submission/rtl/safety_island_core_logic.v'
+Parsing design file '/home/autumn/Desktop/submission/rtl/safety_island_axi_config_slave.v'
+Parsing design file '/home/autumn/Desktop/submission/rtl/safety_island_fault_detector.v'
+Parsing design file '/home/autumn/Desktop/submission/rtl/safety_island_heartbeat.v'
+Parsing design file '/home/autumn/Desktop/submission/rtl/safety_island_top.v'
+Parsing design file '/home/autumn/Desktop/submission/tb/fault_injection/tb_safety_island_fault_injection.v'
+Top Level Modules:
+       tb_safety_island_fault_injection
+TimeScale is 1 ns / 1 ps
+Notice: Ports coerced to inout, use -notice for details
+Starting vcs inline pass...
+
+6 modules and 0 UDP read.
+recompiling module safety_island_axi_read_engine
+recompiling module safety_island_top
+recompiling module tb_safety_island_fault_injection
+3 of 6 modules done
+	However, due to incremental compilation, only 3 modules need to be compiled. 
+make[1]: Entering directory `/home/autumn/Desktop/submission/scripts/csrc'
+rm -f _cuarc*.so _csrc*.so pre_vcsobj_*.so share_vcsobj_*.so
+ld -shared  -Bsymbolic   -o .//../build/simv_batch.daidir//_cuarc0.so objs/amcQw_d.o \
+
+rm -f _cuarc0.so
+if [ -x /home/autumn/Desktop/submission/scripts/build/simv_batch ]; then chmod a-x \
+/home/autumn/Desktop/submission/scripts/build/simv_batch; fi
+g++  -o /home/autumn/Desktop/submission/scripts/build/simv_batch      -rdynamic  \
+-Wl,-rpath='$ORIGIN'/simv_batch.daidir -Wl,-rpath=./simv_batch.daidir -Wl,-rpath=/usr/Synopsys/vcs/T-2022.06/linux64/lib \
+-L/usr/Synopsys/vcs/T-2022.06/linux64/lib  -Wl,-rpath-link=./  /usr/lib64/libnuma.so.1 \
+_122556_archive_1.so _prev_archive_1.so _cuarc0.so  SIM_l.o      rmapats_mop.o rmapats.o \
+rmar.o rmar_nd.o  rmar_llvm_0_1.o rmar_llvm_0_0.o           -lvirsim -lerrorinf -lsnpsmalloc \
+-lvfs    -lvcsnew -lsimprofile -luclinative /usr/Synopsys/vcs/T-2022.06/linux64/lib/vcs_tls.o \
+-Wl,-whole-archive  -lvcsucli    -Wl,-no-whole-archive        _vcs_pli_stub_.o   \
+/usr/Synopsys/vcs/T-2022.06/linux64/lib/vcs_save_restore_new.o /usr/Synopsys/verdi/T-2022.06/share/PLI/VCS/LINUX64/pli.a \
+-ldl  -lc -lm -lpthread -ldl 
+/home/autumn/Desktop/submission/scripts/build/simv_batch up to date
+make[1]: Leaving directory `/home/autumn/Desktop/submission/scripts/csrc'
+CPU time: 4.181 seconds to compile + 1.221 seconds to elab + .850 seconds to link
+Verdi KDB elaboration done and the database successfully generated: 0 error(s), 0 warning(s)

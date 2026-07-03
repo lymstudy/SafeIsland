@@ -1,0 +1,8 @@
+=== Fault Injection Diagnostic Coverage ===
+
+保护概率 = (已纠正 + 已探知) / 错误总数
+
+Baseline:
+FI_SUMMARY: total=54 corrected=3 detected=51 undetected=0 protection_rate=100%
+Batch:
+FI_SUMMARY: total=610 corrected=3 detected=607 undetected=0 protection_rate=100%

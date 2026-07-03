@@ -1,0 +1,10 @@
+AXI Safety Island — 功能仿真回归摘要
+平台: VCS T-2022.06, autumn@192.168.113.146 (eda)
+运行时间: 2026-07-02
+Testbench: tb/functional/tb_safety_island_top_full.v
+
+结果: PASS 34/34
+
+PASS: safety_island_top full test completed, cases=34
+
+日志: sim/functional/logs/full_run.log

@@ -1,0 +1,72 @@
+Command: /home/autumn/Desktop/submission/scripts/build/simv_fault +CSV_FILE=/home/autumn/Desktop/submission/sim/fault_injection/reports/fault_injection_report.csv -l /home/autumn/Desktop/submission/sim/fault_injection/logs/fault_run.log
+Chronologic VCS simulator copyright 1991-2022
+Contains Synopsys proprietary information.
+Compiler version T-2022.06_Full64; Runtime version T-2022.06_Full64;  Jul  2 13:14 2026
+*Verdi* Loading libsscore_vcs202206.so
+FSDB Dumper for VCS, Release Verdi_T-2022.06, Linux x86_64/64bit, 05/29/2022
+(C) 1996 - 2022 by Synopsys, Inc.
+*Verdi* : Create FSDB file 'waves/fault_injection.fsdb'
+*Verdi* : Begin traversing the scope (tb_safety_island_fault_injection), layer (0).
+*Verdi* : End of traversing.
+FI_CASE: name=read_interval_inv type=config_register result=detected cycles=2 code=11
+FI_CASE: name=base_addr_inv_q0 type=config_register result=detected cycles=2 code=11
+FI_CASE: name=offset_inv_q0 type=config_register result=detected cycles=2 code=11
+FI_CASE: name=mask_inv_q0 type=config_register result=detected cycles=2 code=11
+FI_CASE: name=burst_type_inv_q0 type=config_register result=detected cycles=2 code=11
+FI_CASE: name=entry_valid_inv_q0 type=config_register result=detected cycles=2 code=11
+FI_CASE: name=expected_inv_q0 type=config_register result=detected cycles=2 code=11
+FI_CASE: name=state_inv type=core_register result=detected cycles=2 code=41
+FI_CASE: name=fault_or_accum_inv type=core_register result=detected cycles=2 code=43
+FI_CASE: name=pending_wr_ptr type=core_register result=detected cycles=2 code=45
+FI_CASE: name=pending_rd_ptr type=core_register result=detected cycles=2 code=45
+FI_CASE: name=outstanding_count type=core_register result=detected cycles=2 code=44
+FI_CASE: name=axi_read_timeout type=port_interface result=detected cycles=1200 code=21
+FI_CASE: name=axi_rresp_error type=port_interface result=detected cycles=10 code=20
+FI_CASE: name=axi_rid_mismatch type=port_interface result=detected cycles=10 code=20
+FI_CASE: name=axi_rcheck_error type=port_interface result=detected cycles=10 code=20
+FI_CASE: name=transient_state_inv type=transient result=detected cycles=0 code=41
+FI_CASE: name=transient_fault_or_accum_inv type=transient result=detected cycles=0 code=43
+FI_CASE: name=transient_config_shadow type=transient result=detected cycles=0 code=11
+FI_CASE: name=kat_mismatch type=safety_self_test result=detected cycles=10 code=47
+FI_CASE: name=tmr_double_fault type=core_register result=detected cycles=2 code=41
+FI_CASE: name=e2e_crc16_mismatch type=port_interface result=detected cycles=10 code=20
+FI_CASE: name=dig_crc_compare_corrupt type=digital_logic_crc result=detected cycles=1 code=00
+FI_CASE: name=dig_response_decode type=igital_logic_resp_decode result=detected cycles=0 code=48
+FI_CASE: name=dig_error_code_priority type=digital_logic_priority result=detected cycles=0 code=48
+FI_CASE: name=dig_heartbeat_internal type=digital_logic_hb result=detected cycles=0 code=48
+FI_CASE: name=dig_fd_event_shadow type=digital_logic_fd result=detected cycles=0 code=48
+FI_CASE: name=dig_accum_shadow_comparator type=digital_logic_shadow result=detected cycles=0 code=48
+FI_CASE: name=dig_kat_shadow type=digital_logic_kat_shadow result=detected cycles=2 code=11
+FI_CASE: name=dig_scan_trigger type=digital_logic_scan result=detected cycles=2 code=12
+FI_CASE: name=dig_slot_ptr_oob type=digital_logic_slot result=detected cycles=2 code=45
+FI_CASE: name=dig_slot_age_timeout type=digital_logic_slot result=detected cycles=1 code=00
+FI_CASE: name=dig_entry4_shadow type=digital_logic_data result=detected cycles=2 code=11
+FI_CASE: name=dig_illegal_entry type=digital_logic_cfg result=detected cycles=2 code=11
+FI_CASE: name=dig_outstanding_mismatch type=digital_logic_slot result=detected cycles=2 code=44
+FI_CASE: name=dig_cmd_ready_stall type=digital_logic_slot result=detected cycles=1 code=00
+FI_CASE: name=dig_fsm_illegal_state type=digital_logic_fsm result=detected cycles=2 code=41
+FI_CASE: name=dig_current_index_oob type=digital_logic_core result=detected cycles=2 code=42
+FI_CASE: name=dig_cfg_shadow_comp_stuck type=digital_logic_shadow result=detected cycles=2 code=11
+FI_CASE: name=dig_event_shadow_direct type=digital_logic_fd result=detected cycles=1 code=50
+FI_CASE: name=dig_accum_shadow_direct type=digital_logic_core result=detected cycles=2 code=43
+FI_CASE: name=dig_crc_mismatch_direct type=digital_logic_crc result=detected cycles=1 code=00
+FI_CASE: name=dig_crc_expected_stuck type=digital_logic_crc result=detected cycles=1 code=00
+FI_CASE: name=dig_re_wr_ptr_oob type=digital_logic_slot result=detected cycles=0 code=48
+FI_CASE: name=dig_re_rd_ptr_oob type=digital_logic_slot result=detected cycles=0 code=48
+FI_CASE: name=dig_re_outstanding_oob type=digital_logic_slot result=detected cycles=0 code=48
+FI_CASE: name=dig_write_verify_stuck type=digital_logic_cfg result=detected cycles=100 code=48
+FI_CASE: name=dig_cfg_burst_type_direct type=digital_logic_cfg result=detected cycles=2 code=10
+FI_CASE: name=dig_cfg_burst_len_direct type=digital_logic_cfg result=detected cycles=2 code=10
+FI_CASE: name=dig_scan_start_stuck type=digital_logic_scan result=detected cycles=2500 code=43
+FI_CASE: name=dig_cfg_interval_direct type=digital_logic_cfg result=detected cycles=1 code=12
+FI_CASE: name=dig_slot_valid_tmr type=digital_logic_slot result=corrected cycles=1 code=00
+FI_CASE: name=dig_cfg_fault_tmr type=digital_logic_cfg result=corrected cycles=2 code=10
+FI_CASE: name=dig_safety_fault_tmr type=digital_logic_core result=corrected cycles=2 code=00
+FI_SUMMARY: total=54 corrected=3 detected=51 undetected=0 protection_rate=100%
+PASS: safety_island fault injection campaign completed
+$finish called from file "/home/autumn/Desktop/submission/tb/fault_injection/tb_safety_island_fault_injection.v", line 1872.
+$finish at simulation time             58715000
+           V C S   S i m u l a t i o n   R e p o r t 
+Time: 58715000 ps
+CPU Time:      1.550 seconds;       Data structure size:   0.2Mb
+Thu Jul  2 13:14:50 2026
