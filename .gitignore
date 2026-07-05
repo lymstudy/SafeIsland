@@ -1,0 +1,13 @@
+# Python
+__pycache__/
+*.pyc
+
+# VCS 中间产物（结果摘要保留在 sim/*/reports 与 *.txt）
+submission/sim/work/
+submission/sim/functional/logs/*.log
+submission/sim/functional/coverage/build.vdb/
+submission/sim/fault_injection/logs/*.log
+
+# 注错分析临时输出（由 tools/analyze_fi_report.py 按需生成）
+submission/sim/fault_injection/reports/fi_normalized.csv
+submission/sim/fault_injection/reports/safety_report.csv

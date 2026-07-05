@@ -228,22 +228,40 @@ module safety_island_top #(
     assign aggregate_safety_fault = core_safety_fault | datapath_safety_fault;
     assign aggregate_safety_error_code = core_safety_fault ? core_safety_error_code : 8'h48;
 
-    (* DONT_TOUCH = "TRUE" *) wire fd_a = fd_external_fault | fd_bus_fault | fd_cfg_fault;
-    (* DONT_TOUCH = "TRUE" *) wire fd_b = fd_external_fault | fd_bus_fault | fd_cfg_fault;
-    (* DONT_TOUCH = "TRUE" *) wire fd_c = fd_external_fault | fd_bus_fault | fd_cfg_fault;
+    wire fd_comb_raw;
+    wire sifd_comb_raw;
+    assign fd_comb_raw = fd_external_fault | fd_bus_fault | fd_cfg_fault;
+    assign sifd_comb_raw = fd_safety_island_fault | heartbeat_fault | datapath_safety_fault;
 
+    (* DONT_TOUCH = "TRUE" *) reg fd_a;
+    (* DONT_TOUCH = "TRUE" *) reg fd_b;
+    (* DONT_TOUCH = "TRUE" *) reg fd_c;
+    (* DONT_TOUCH = "TRUE" *) reg sifd_a;
+    (* DONT_TOUCH = "TRUE" *) reg sifd_b;
+    (* DONT_TOUCH = "TRUE" *) reg sifd_c;
+
+    wire [0:0] fd_voted;
     wire fd_tmr_mismatch;
-    assign fault_detect = (fd_a & fd_b) | (fd_b & fd_c) | (fd_a & fd_c);
-    assign fd_tmr_mismatch = (fd_a ^ fd_b) | (fd_a ^ fd_c) | (fd_b ^ fd_c);
-
-    (* DONT_TOUCH = "TRUE" *) wire sifd_a = fd_safety_island_fault | heartbeat_fault | datapath_safety_fault;
-    (* DONT_TOUCH = "TRUE" *) wire sifd_b = fd_safety_island_fault | heartbeat_fault | datapath_safety_fault;
-    (* DONT_TOUCH = "TRUE" *) wire sifd_c = fd_safety_island_fault | heartbeat_fault | datapath_safety_fault;
-
+    wire fd_voter_self_fault;
+    wire [0:0] sifd_voted;
     wire sifd_tmr_mismatch;
-    assign safety_island_fault_detect = ((sifd_a & sifd_b) | (sifd_b & sifd_c) | (sifd_a & sifd_c))
-                                       | fd_tmr_mismatch | sifd_tmr_mismatch;
-    assign sifd_tmr_mismatch = (sifd_a ^ sifd_b) | (sifd_a ^ sifd_c) | (sifd_b ^ sifd_c);
+    wire sifd_voter_self_fault;
+
+    tmr_voter_protected #(1) u_fd_out_tmr (
+        .a(fd_a), .b(fd_b), .c(fd_c),
+        .voted(fd_voted), .mismatch(fd_tmr_mismatch),
+        .voter_self_fault(fd_voter_self_fault)
+    );
+    tmr_voter_protected #(1) u_sifd_out_tmr (
+        .a(sifd_a), .b(sifd_b), .c(sifd_c),
+        .voted(sifd_voted), .mismatch(sifd_tmr_mismatch),
+        .voter_self_fault(sifd_voter_self_fault)
+    );
+
+    assign fault_detect = fd_voted[0];
+    assign safety_island_fault_detect = sifd_voted[0] | fd_tmr_mismatch |
+                                        sifd_tmr_mismatch | fd_voter_self_fault |
+                                        sifd_voter_self_fault;
     assign safety_island_latent_fault_detect = fd_safety_island_latent_fault |
                                               cfg_shadow_error | fd_safety_island_fault |
                                               datapath_safety_fault;
@@ -665,5 +683,51 @@ module safety_island_top #(
             );
         end
     endgenerate
+
+    wire fd_sticky_tmr_mismatch;
+    wire sifd_sticky_tmr_mismatch;
+    assign fd_sticky_tmr_mismatch = (fd_a ^ fd_b) | (fd_a ^ fd_c) | (fd_b ^ fd_c);
+    assign sifd_sticky_tmr_mismatch = (sifd_a ^ sifd_b) | (sifd_a ^ sifd_c) | (sifd_b ^ sifd_c);
+
+    always @(posedge clk) begin
+        if (rst) begin
+            fd_a    <= 1'b0;
+            fd_b    <= 1'b0;
+            fd_c    <= 1'b0;
+            sifd_a  <= 1'b0;
+            sifd_b  <= 1'b0;
+            sifd_c  <= 1'b0;
+        end else begin
+            if (cfg_clear_core_status) begin
+                fd_a   <= 1'b0;
+                fd_b   <= 1'b0;
+                fd_c   <= 1'b0;
+                sifd_a <= 1'b0;
+                sifd_b <= 1'b0;
+                sifd_c <= 1'b0;
+            end else begin
+                if (fd_comb_raw) begin
+                    fd_a <= 1'b1;
+                    fd_b <= 1'b1;
+                    fd_c <= 1'b1;
+                end
+                if (sifd_comb_raw) begin
+                    sifd_a <= 1'b1;
+                    sifd_b <= 1'b1;
+                    sifd_c <= 1'b1;
+                end
+                if (fd_sticky_tmr_mismatch) begin
+                    fd_a <= fd_voted[0];
+                    fd_b <= fd_voted[0];
+                    fd_c <= fd_voted[0];
+                end
+                if (sifd_sticky_tmr_mismatch) begin
+                    sifd_a <= sifd_voted[0];
+                    sifd_b <= sifd_voted[0];
+                    sifd_c <= sifd_voted[0];
+                end
+            end
+        end
+    end
 
 endmodule

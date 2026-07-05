@@ -60,14 +60,14 @@ module safety_island_fault_detector #(
 
     // ─── Fault outputs ───
     output wire                                 fault_detect,
-    output reg                                  external_fault_event,
-    output reg                                  bus_fault_event,
-    output reg                                  cfg_fault_event,
-    output reg                                  safety_island_fault_event,
-    output reg                                  safety_island_latent_fault_event,
+    output wire                                 external_fault_event,
+    output wire                                 bus_fault_event,
+    output wire                                 cfg_fault_event,
+    output wire                                 safety_island_fault_event,
+    output wire                                 safety_island_latent_fault_event,
     output reg  [DATA_W-1:0]                    fault_or_result,
-    output reg  [63:0]                          fault_status,
-    output reg  [7:0]                           error_code
+    output wire [63:0]                          fault_status,
+    output wire [7:0]                           error_code
 );
 
     //--------------------------------------------------------------------------
@@ -137,14 +137,77 @@ module safety_island_fault_detector #(
 
     // Accumulator shadow fault
     reg accum_shadow_fault;
-    reg external_fault_event_inv;
-    reg bus_fault_event_inv;
-    reg cfg_fault_event_inv;
-    reg safety_island_fault_event_inv;
-    reg safety_island_latent_fault_event_inv;
+    reg external_fault_event_a, external_fault_event_b, external_fault_event_c;
+    reg bus_fault_event_a, bus_fault_event_b, bus_fault_event_c;
+    reg cfg_fault_event_a, cfg_fault_event_b, cfg_fault_event_c;
+    reg safety_island_fault_event_a, safety_island_fault_event_b, safety_island_fault_event_c;
+    reg safety_island_latent_fault_event_a, safety_island_latent_fault_event_b;
+    reg safety_island_latent_fault_event_c;
+
+    wire external_fault_event_voted;
+    wire bus_fault_event_voted;
+    wire cfg_fault_event_voted;
+    wire safety_island_fault_event_voted;
+    wire safety_island_latent_fault_event_voted;
+
+    assign external_fault_event_voted = (external_fault_event_a & external_fault_event_b) |
+                                        (external_fault_event_b & external_fault_event_c) |
+                                        (external_fault_event_a & external_fault_event_c);
+    assign bus_fault_event_voted = (bus_fault_event_a & bus_fault_event_b) |
+                                   (bus_fault_event_b & bus_fault_event_c) |
+                                   (bus_fault_event_a & bus_fault_event_c);
+    assign cfg_fault_event_voted = (cfg_fault_event_a & cfg_fault_event_b) |
+                                   (cfg_fault_event_b & cfg_fault_event_c) |
+                                   (cfg_fault_event_a & cfg_fault_event_c);
+    assign safety_island_fault_event_voted =
+        (safety_island_fault_event_a & safety_island_fault_event_b) |
+        (safety_island_fault_event_b & safety_island_fault_event_c) |
+        (safety_island_fault_event_a & safety_island_fault_event_c);
+    assign safety_island_latent_fault_event_voted =
+        (safety_island_latent_fault_event_a & safety_island_latent_fault_event_b) |
+        (safety_island_latent_fault_event_b & safety_island_latent_fault_event_c) |
+        (safety_island_latent_fault_event_a & safety_island_latent_fault_event_c);
+
+    assign external_fault_event = external_fault_event_voted;
+    assign bus_fault_event = bus_fault_event_voted;
+    assign cfg_fault_event = cfg_fault_event_voted;
+    assign safety_island_fault_event = safety_island_fault_event_voted;
+    assign safety_island_latent_fault_event = safety_island_latent_fault_event_voted;
+
+    wire event_tmr_mismatch;
+    assign event_tmr_mismatch =
+        (external_fault_event_a ^ external_fault_event_b) |
+        (external_fault_event_a ^ external_fault_event_c) |
+        (bus_fault_event_a ^ bus_fault_event_b) |
+        (cfg_fault_event_a ^ cfg_fault_event_b) |
+        (safety_island_fault_event_a ^ safety_island_fault_event_b) |
+        (safety_island_latent_fault_event_a ^ safety_island_latent_fault_event_b);
+
+    reg [63:0] fault_status_a, fault_status_b, fault_status_c;
+    wire [63:0] fault_status_voted;
+    assign fault_status_voted = (fault_status_a & fault_status_b) |
+                                (fault_status_b & fault_status_c) |
+                                (fault_status_a & fault_status_c);
+
+    reg [7:0] error_code_a, error_code_b, error_code_c;
+    wire [7:0] error_code_voted;
+    assign error_code_voted = (error_code_a & error_code_b) |
+                              (error_code_b & error_code_c) |
+                              (error_code_a & error_code_c);
+
+    assign fault_detect = external_fault_event_voted |
+                          bus_fault_event_voted      |
+                          cfg_fault_event_voted;
+
     reg [DATA_W-1:0] fault_or_result_inv;
     reg [63:0] fault_status_inv;
     reg [7:0] error_code_inv;
+
+    wire event_shadow_fault;
+    assign event_shadow_fault = event_tmr_mismatch |
+        (fault_or_result_inv != ~fault_or_result) |
+        (fault_status_inv != ~fault_status_voted) |
+        (error_code_inv != ~error_code_voted);
 
     integer ch;
     integer init_ch;
@@ -160,27 +223,18 @@ module safety_island_fault_detector #(
 
     assign resp_masked_data     = fd_resp_data & fd_resp_mask;
     assign resp_masked_expected = fd_resp_expected & fd_resp_mask;
-    assign resp_masked_mismatch = resp_masked_data != resp_masked_expected;
+    wire resp_cmp0;
+    wire resp_cmp1;
+    wire resp_cmp2;
+    assign resp_cmp0 = (resp_masked_data != resp_masked_expected);
+    assign resp_cmp1 = |(fd_resp_data ^ fd_resp_expected) & fd_resp_mask;
+    assign resp_cmp2 = |(resp_masked_data ^ resp_masked_expected);
+    assign resp_masked_mismatch = (resp_cmp0 & resp_cmp1) | (resp_cmp1 & resp_cmp2) |
+                                  (resp_cmp0 & resp_cmp2);
     assign resp_master_in_range = (fd_resp_master_idx < NUM_MASTERS);
 
-    //--------------------------------------------------------------------------
-    // Combinational: aggregate fault_detect
-    //--------------------------------------------------------------------------
-
-    assign fault_detect = external_fault_event |
-                          bus_fault_event      |
-                          cfg_fault_event;
-
-    wire event_shadow_fault;
-    assign event_shadow_fault =
-        (external_fault_event_inv != ~external_fault_event) |
-        (bus_fault_event_inv != ~bus_fault_event) |
-        (cfg_fault_event_inv != ~cfg_fault_event) |
-        (safety_island_fault_event_inv != ~safety_island_fault_event) |
-        (safety_island_latent_fault_event_inv != ~safety_island_latent_fault_event) |
-        (fault_or_result_inv != ~fault_or_result) |
-        (fault_status_inv != ~fault_status) |
-        (error_code_inv != ~error_code);
+    assign fault_status = fault_status_voted;
+    assign error_code   = error_code_voted;
 
     //--------------------------------------------------------------------------
     // Sequential: fault detection logic
@@ -195,22 +249,31 @@ module safety_island_fault_detector #(
             bus_error_seen           <= 1'b0;
             bus_timeout_seen         <= 1'b0;
             accum_shadow_fault       <= 1'b0;
-            external_fault_event     <= 1'b0;
-            bus_fault_event          <= 1'b0;
-            cfg_fault_event          <= 1'b0;
-            safety_island_fault_event<= 1'b0;
-            safety_island_latent_fault_event <= 1'b0;
-            fault_or_result          <= {DATA_W{1'b0}};
-            fault_status             <= 64'd0;
-            error_code               <= ERR_NONE;
-            external_fault_event_inv <= 1'b1;
-            bus_fault_event_inv      <= 1'b1;
-            cfg_fault_event_inv      <= 1'b1;
-            safety_island_fault_event_inv <= 1'b1;
-            safety_island_latent_fault_event_inv <= 1'b1;
-            fault_or_result_inv      <= {DATA_W{1'b1}};
-            fault_status_inv         <= {64{1'b1}};
-            error_code_inv           <= ~ERR_NONE;
+            external_fault_event_a     <= 1'b0;
+            external_fault_event_b     <= 1'b0;
+            external_fault_event_c     <= 1'b0;
+            bus_fault_event_a          <= 1'b0;
+            bus_fault_event_b          <= 1'b0;
+            bus_fault_event_c          <= 1'b0;
+            cfg_fault_event_a          <= 1'b0;
+            cfg_fault_event_b          <= 1'b0;
+            cfg_fault_event_c          <= 1'b0;
+            safety_island_fault_event_a<= 1'b0;
+            safety_island_fault_event_b<= 1'b0;
+            safety_island_fault_event_c<= 1'b0;
+            safety_island_latent_fault_event_a <= 1'b0;
+            safety_island_latent_fault_event_b <= 1'b0;
+            safety_island_latent_fault_event_c <= 1'b0;
+            fault_or_result            <= {DATA_W{1'b0}};
+            fault_status_a             <= 64'd0;
+            fault_status_b             <= 64'd0;
+            fault_status_c             <= 64'd0;
+            error_code_a               <= ERR_NONE;
+            error_code_b               <= ERR_NONE;
+            error_code_c               <= ERR_NONE;
+            fault_or_result_inv        <= {DATA_W{1'b1}};
+            fault_status_inv           <= {64{1'b1}};
+            error_code_inv             <= ~ERR_NONE;
 
             for (init_ch = 0; init_ch < NUM_MASTERS; init_ch = init_ch + 1) begin
                 stuck_counter[init_ch] <= 4'd0;
@@ -218,12 +281,17 @@ module safety_island_fault_detector #(
         end else begin
             // ── Per-response processing ──
             if (event_shadow_fault) begin
-                safety_island_fault_event <= 1'b1;
-                safety_island_fault_event_inv <= 1'b0;
-                fault_status[FAULT_SAFETY_ISLAND_BIT] <= 1'b1;
+                safety_island_fault_event_a <= 1'b1;
+                safety_island_fault_event_b <= 1'b1;
+                safety_island_fault_event_c <= 1'b1;
+                fault_status_a[FAULT_SAFETY_ISLAND_BIT] <= 1'b1;
+                fault_status_b[FAULT_SAFETY_ISLAND_BIT] <= 1'b1;
+                fault_status_c[FAULT_SAFETY_ISLAND_BIT] <= 1'b1;
                 fault_status_inv[FAULT_SAFETY_ISLAND_BIT] <= 1'b0;
-                if (error_code == ERR_NONE) begin
-                    error_code <= ERR_CORE_SAFETY;
+                if (error_code_voted == ERR_NONE) begin
+                    error_code_a <= ERR_CORE_SAFETY;
+                    error_code_b <= ERR_CORE_SAFETY;
+                    error_code_c <= ERR_CORE_SAFETY;
                     error_code_inv <= ~ERR_CORE_SAFETY;
                 end
             end
@@ -237,30 +305,42 @@ module safety_island_fault_detector #(
                 if (resp_master_in_range && resp_masked_mismatch) begin
                     ch_mismatch_this_round[fd_resp_master_idx] <= 1'b1;
                     ch_mismatch_latched[fd_resp_master_idx]    <= 1'b1;
-                    fault_status[FAULT_EXPECTED_BIT + fd_resp_master_idx] <= 1'b1;
+                    fault_status_a[FAULT_EXPECTED_BIT + fd_resp_master_idx] <= 1'b1;
+                    fault_status_b[FAULT_EXPECTED_BIT + fd_resp_master_idx] <= 1'b1;
+                    fault_status_c[FAULT_EXPECTED_BIT + fd_resp_master_idx] <= 1'b1;
                     fault_status_inv[FAULT_EXPECTED_BIT + fd_resp_master_idx] <= 1'b0;
                 end
 
                 // Bus faults
                 if (fd_resp_error) begin
                     bus_error_seen <= 1'b1;
-                    bus_fault_event <= 1'b1;
-                    bus_fault_event_inv <= 1'b0;
-                    fault_status[FAULT_ERROR_RESP_BIT + fd_resp_master_idx] <= 1'b1;
+                    bus_fault_event_a <= 1'b1;
+                    bus_fault_event_b <= 1'b1;
+                    bus_fault_event_c <= 1'b1;
+                    fault_status_a[FAULT_ERROR_RESP_BIT + fd_resp_master_idx] <= 1'b1;
+                    fault_status_b[FAULT_ERROR_RESP_BIT + fd_resp_master_idx] <= 1'b1;
+                    fault_status_c[FAULT_ERROR_RESP_BIT + fd_resp_master_idx] <= 1'b1;
                     fault_status_inv[FAULT_ERROR_RESP_BIT + fd_resp_master_idx] <= 1'b0;
-                    if (error_code == ERR_NONE) begin
-                        error_code <= ERR_BUS_RESP;
+                    if (error_code_voted == ERR_NONE) begin
+                        error_code_a <= ERR_BUS_RESP;
+                        error_code_b <= ERR_BUS_RESP;
+                        error_code_c <= ERR_BUS_RESP;
                         error_code_inv <= ~ERR_BUS_RESP;
                     end
                 end
                 if (fd_resp_timeout) begin
                     bus_timeout_seen <= 1'b1;
-                    bus_fault_event <= 1'b1;
-                    bus_fault_event_inv <= 1'b0;
-                    fault_status[FAULT_TIMEOUT_BIT + fd_resp_master_idx] <= 1'b1;
+                    bus_fault_event_a <= 1'b1;
+                    bus_fault_event_b <= 1'b1;
+                    bus_fault_event_c <= 1'b1;
+                    fault_status_a[FAULT_TIMEOUT_BIT + fd_resp_master_idx] <= 1'b1;
+                    fault_status_b[FAULT_TIMEOUT_BIT + fd_resp_master_idx] <= 1'b1;
+                    fault_status_c[FAULT_TIMEOUT_BIT + fd_resp_master_idx] <= 1'b1;
                     fault_status_inv[FAULT_TIMEOUT_BIT + fd_resp_master_idx] <= 1'b0;
-                    if (error_code == ERR_NONE) begin
-                        error_code <= ERR_BUS_TIMEOUT;
+                    if (error_code_voted == ERR_NONE) begin
+                        error_code_a <= ERR_BUS_TIMEOUT;
+                        error_code_b <= ERR_BUS_TIMEOUT;
+                        error_code_c <= ERR_BUS_TIMEOUT;
                         error_code_inv <= ~ERR_BUS_TIMEOUT;
                     end
                 end
@@ -268,40 +348,56 @@ module safety_island_fault_detector #(
 
             // ── Config faults (continuously monitored) ──
             if (cfg_illegal) begin
-                cfg_fault_event                <= 1'b1;
-                cfg_fault_event_inv            <= 1'b0;
-                fault_status[FAULT_ILLEGAL_CFG_BIT] <= 1'b1;
+                cfg_fault_event_a <= 1'b1;
+                cfg_fault_event_b <= 1'b1;
+                cfg_fault_event_c <= 1'b1;
+                fault_status_a[FAULT_ILLEGAL_CFG_BIT] <= 1'b1;
+                fault_status_b[FAULT_ILLEGAL_CFG_BIT] <= 1'b1;
+                fault_status_c[FAULT_ILLEGAL_CFG_BIT] <= 1'b1;
                 fault_status_inv[FAULT_ILLEGAL_CFG_BIT] <= 1'b0;
-                if (error_code == ERR_NONE) begin
-                    error_code <= ERR_CFG_ILLEGAL;
+                if (error_code_voted == ERR_NONE) begin
+                    error_code_a <= ERR_CFG_ILLEGAL;
+                    error_code_b <= ERR_CFG_ILLEGAL;
+                    error_code_c <= ERR_CFG_ILLEGAL;
                     error_code_inv <= ~ERR_CFG_ILLEGAL;
                 end
             end
             if (cfg_shadow_error) begin
-                cfg_fault_event <= 1'b1;
-                cfg_fault_event_inv <= 1'b0;
-                if (error_code == ERR_NONE) begin
-                    error_code <= ERR_CFG_SHADOW;
+                cfg_fault_event_a <= 1'b1;
+                cfg_fault_event_b <= 1'b1;
+                cfg_fault_event_c <= 1'b1;
+                if (error_code_voted == ERR_NONE) begin
+                    error_code_a <= ERR_CFG_SHADOW;
+                    error_code_b <= ERR_CFG_SHADOW;
+                    error_code_c <= ERR_CFG_SHADOW;
                     error_code_inv <= ~ERR_CFG_SHADOW;
                 end
             end
             if (cfg_interval_zero) begin
-                cfg_fault_event <= 1'b1;
-                cfg_fault_event_inv <= 1'b0;
-                if (error_code == ERR_NONE) begin
-                    error_code <= ERR_CFG_INTERVAL_ZERO;
+                cfg_fault_event_a <= 1'b1;
+                cfg_fault_event_b <= 1'b1;
+                cfg_fault_event_c <= 1'b1;
+                if (error_code_voted == ERR_NONE) begin
+                    error_code_a <= ERR_CFG_INTERVAL_ZERO;
+                    error_code_b <= ERR_CFG_INTERVAL_ZERO;
+                    error_code_c <= ERR_CFG_INTERVAL_ZERO;
                     error_code_inv <= ~ERR_CFG_INTERVAL_ZERO;
                 end
             end
 
             // ── Core safety fault (pass-through) ──
             if (core_safety_fault) begin
-                safety_island_fault_event <= 1'b1;
-                safety_island_fault_event_inv <= 1'b0;
-                fault_status[FAULT_SAFETY_ISLAND_BIT] <= 1'b1;
+                safety_island_fault_event_a <= 1'b1;
+                safety_island_fault_event_b <= 1'b1;
+                safety_island_fault_event_c <= 1'b1;
+                fault_status_a[FAULT_SAFETY_ISLAND_BIT] <= 1'b1;
+                fault_status_b[FAULT_SAFETY_ISLAND_BIT] <= 1'b1;
+                fault_status_c[FAULT_SAFETY_ISLAND_BIT] <= 1'b1;
                 fault_status_inv[FAULT_SAFETY_ISLAND_BIT] <= 1'b0;
-                if (error_code == ERR_NONE) begin
-                    error_code <= core_safety_error_code;
+                if (error_code_voted == ERR_NONE) begin
+                    error_code_a <= core_safety_error_code;
+                    error_code_b <= core_safety_error_code;
+                    error_code_c <= core_safety_error_code;
                     error_code_inv <= ~core_safety_error_code;
                 end
             end
@@ -334,16 +430,19 @@ module safety_island_fault_detector #(
                 // ─── P1: Per-channel stuck-at and latent (MOST specific) ───
                 for (ch = 0; ch < NUM_MASTERS; ch = ch + 1) begin
                     if (ch_mismatch_this_round[ch] ||
-                        fault_status[FAULT_ERROR_RESP_BIT + ch] ||
-                        fault_status[FAULT_TIMEOUT_BIT + ch]) begin
+                        fault_status_voted[FAULT_ERROR_RESP_BIT + ch] ||
+                        fault_status_voted[FAULT_TIMEOUT_BIT + ch]) begin
                         if (stuck_counter[ch] < STUCK_AT_THRESHOLD)
                             stuck_counter[ch] <= stuck_counter[ch] + 4'd1;
 
                         if (stuck_counter[ch] >= (STUCK_AT_THRESHOLD - 1)) begin
-                            fault_status[FAULT_STUCK_AT_BIT + ch] <= 1'b1;
+                            fault_status_a[FAULT_STUCK_AT_BIT + ch] <= 1'b1;
+                            fault_status_b[FAULT_STUCK_AT_BIT + ch] <= 1'b1;
+                            fault_status_c[FAULT_STUCK_AT_BIT + ch] <= 1'b1;
                             fault_status_inv[FAULT_STUCK_AT_BIT + ch] <= 1'b0;
-                            safety_island_fault_event <= 1'b1;
-                            safety_island_fault_event_inv <= 1'b0;
+                            safety_island_fault_event_a <= 1'b1;
+                            safety_island_fault_event_b <= 1'b1;
+                            safety_island_fault_event_c <= 1'b1;
                             if (next_error_code == ERR_NONE) begin
                                 next_error_code = ERR_STUCK_AT_FAULT;
                             end
@@ -352,10 +451,13 @@ module safety_island_fault_detector #(
                         if (stuck_counter[ch] > 4'd0 &&
                             stuck_counter[ch] < STUCK_AT_THRESHOLD &&
                             ch_mismatch_latched[ch]) begin
-                            fault_status[FAULT_LATENT_BIT + ch] <= 1'b1;
+                            fault_status_a[FAULT_LATENT_BIT + ch] <= 1'b1;
+                            fault_status_b[FAULT_LATENT_BIT + ch] <= 1'b1;
+                            fault_status_c[FAULT_LATENT_BIT + ch] <= 1'b1;
                             fault_status_inv[FAULT_LATENT_BIT + ch] <= 1'b0;
-                            safety_island_latent_fault_event <= 1'b1;
-                            safety_island_latent_fault_event_inv <= 1'b0;
+                            safety_island_latent_fault_event_a <= 1'b1;
+                            safety_island_latent_fault_event_b <= 1'b1;
+                            safety_island_latent_fault_event_c <= 1'b1;
                             if (next_error_code == ERR_NONE) begin
                                 next_error_code = ERR_LATENT_FAULT;
                             end
@@ -364,9 +466,12 @@ module safety_island_fault_detector #(
                     end
 
                     if (stuck_counter[ch] > STUCK_AT_THRESHOLD) begin
-                        safety_island_fault_event <= 1'b1;
-                        safety_island_fault_event_inv <= 1'b0;
-                        fault_status[FAULT_SAFETY_ISLAND_BIT] <= 1'b1;
+                        safety_island_fault_event_a <= 1'b1;
+                        safety_island_fault_event_b <= 1'b1;
+                        safety_island_fault_event_c <= 1'b1;
+                        fault_status_a[FAULT_SAFETY_ISLAND_BIT] <= 1'b1;
+                        fault_status_b[FAULT_SAFETY_ISLAND_BIT] <= 1'b1;
+                        fault_status_c[FAULT_SAFETY_ISLAND_BIT] <= 1'b1;
                         fault_status_inv[FAULT_SAFETY_ISLAND_BIT] <= 1'b0;
                         if (next_error_code == ERR_NONE) begin
                             next_error_code = ERR_STUCK_CTR_RANGE;
@@ -374,30 +479,32 @@ module safety_island_fault_detector #(
                     end
                 end
 
-                // ─── P2: Expected mismatch (more specific than generic external) ───
                 if (|ch_mismatch_this_round) begin
-                    external_fault_event <= 1'b1;
-                    external_fault_event_inv <= 1'b0;
+                    external_fault_event_a <= 1'b1;
+                    external_fault_event_b <= 1'b1;
+                    external_fault_event_c <= 1'b1;
                     if (next_error_code == ERR_NONE) begin
                         next_error_code = ERR_EXPECTED_MISMATCH;
                     end
                 end
 
-                // ─── P3: External fault (generic fallback) ───
                 if (accum != {DATA_W{1'b0}}) begin
-                    external_fault_event <= 1'b1;
-                    external_fault_event_inv <= 1'b0;
-                    fault_status[FAULT_EXTERNAL_BIT] <= 1'b1;
+                    external_fault_event_a <= 1'b1;
+                    external_fault_event_b <= 1'b1;
+                    external_fault_event_c <= 1'b1;
+                    fault_status_a[FAULT_EXTERNAL_BIT] <= 1'b1;
+                    fault_status_b[FAULT_EXTERNAL_BIT] <= 1'b1;
+                    fault_status_c[FAULT_EXTERNAL_BIT] <= 1'b1;
                     fault_status_inv[FAULT_EXTERNAL_BIT] <= 1'b0;
                     if (next_error_code == ERR_NONE) begin
                         next_error_code = ERR_EXTERNAL_FAULT;
                     end
                 end
 
-                // ─── P4: Bus fault ───
                 if (bus_error_seen || bus_timeout_seen) begin
-                    bus_fault_event <= 1'b1;
-                    bus_fault_event_inv <= 1'b0;
+                    bus_fault_event_a <= 1'b1;
+                    bus_fault_event_b <= 1'b1;
+                    bus_fault_event_c <= 1'b1;
                     if (next_error_code == ERR_NONE) begin
                         if (bus_timeout_seen) begin
                             next_error_code = ERR_BUS_TIMEOUT;
@@ -407,12 +514,16 @@ module safety_island_fault_detector #(
                     end
                 end
 
-                // ─── Accumulator shadow check → safety island fault ───
                 if (accum_shadow_fault) begin
-                    safety_island_fault_event <= 1'b1;
-                    safety_island_fault_event_inv <= 1'b0;
-                    fault_status[FAULT_ACCUM_SHADOW_BIT] <= 1'b1;
-                    fault_status[FAULT_SAFETY_ISLAND_BIT] <= 1'b1;
+                    safety_island_fault_event_a <= 1'b1;
+                    safety_island_fault_event_b <= 1'b1;
+                    safety_island_fault_event_c <= 1'b1;
+                    fault_status_a[FAULT_ACCUM_SHADOW_BIT] <= 1'b1;
+                    fault_status_b[FAULT_ACCUM_SHADOW_BIT] <= 1'b1;
+                    fault_status_c[FAULT_ACCUM_SHADOW_BIT] <= 1'b1;
+                    fault_status_a[FAULT_SAFETY_ISLAND_BIT] <= 1'b1;
+                    fault_status_b[FAULT_SAFETY_ISLAND_BIT] <= 1'b1;
+                    fault_status_c[FAULT_SAFETY_ISLAND_BIT] <= 1'b1;
                     fault_status_inv[FAULT_ACCUM_SHADOW_BIT] <= 1'b0;
                     fault_status_inv[FAULT_SAFETY_ISLAND_BIT] <= 1'b0;
                     if (next_error_code == ERR_NONE) begin
@@ -421,35 +532,66 @@ module safety_island_fault_detector #(
                 end
 
                 if (next_error_code != ERR_NONE) begin
-                    error_code <= next_error_code;
+                    error_code_a <= next_error_code;
+                    error_code_b <= next_error_code;
+                    error_code_c <= next_error_code;
                     error_code_inv <= ~next_error_code;
                 end
 
-                // Aggregate safety island fault
-                if (safety_island_fault_event) begin
-                    fault_status[FAULT_SAFETY_ISLAND_BIT] <= 1'b1;
+                if (safety_island_fault_event_voted) begin
+                    fault_status_a[FAULT_SAFETY_ISLAND_BIT] <= 1'b1;
+                    fault_status_b[FAULT_SAFETY_ISLAND_BIT] <= 1'b1;
+                    fault_status_c[FAULT_SAFETY_ISLAND_BIT] <= 1'b1;
                     fault_status_inv[FAULT_SAFETY_ISLAND_BIT] <= 1'b0;
                 end
             end
 
+            // ── TMR feedback repair ──
+            if (event_tmr_mismatch) begin
+                external_fault_event_a <= external_fault_event_voted;
+                external_fault_event_b <= external_fault_event_voted;
+                external_fault_event_c <= external_fault_event_voted;
+                bus_fault_event_a <= bus_fault_event_voted;
+                bus_fault_event_b <= bus_fault_event_voted;
+                bus_fault_event_c <= bus_fault_event_voted;
+                cfg_fault_event_a <= cfg_fault_event_voted;
+                cfg_fault_event_b <= cfg_fault_event_voted;
+                cfg_fault_event_c <= cfg_fault_event_voted;
+                safety_island_fault_event_a <= safety_island_fault_event_voted;
+                safety_island_fault_event_b <= safety_island_fault_event_voted;
+                safety_island_fault_event_c <= safety_island_fault_event_voted;
+                safety_island_latent_fault_event_a <= safety_island_latent_fault_event_voted;
+                safety_island_latent_fault_event_b <= safety_island_latent_fault_event_voted;
+                safety_island_latent_fault_event_c <= safety_island_latent_fault_event_voted;
+            end
+
             // ── Clear status ──
             if (clear_status) begin
-                external_fault_event      <= 1'b0;
-                bus_fault_event           <= 1'b0;
-                cfg_fault_event           <= 1'b0;
-                safety_island_fault_event <= 1'b0;
-                safety_island_latent_fault_event <= 1'b0;
-                fault_status              <= 64'd0;
-                error_code                <= ERR_NONE;
-                external_fault_event_inv  <= 1'b1;
-                bus_fault_event_inv       <= 1'b1;
-                cfg_fault_event_inv       <= 1'b1;
-                safety_island_fault_event_inv <= 1'b1;
-                safety_island_latent_fault_event_inv <= 1'b1;
-                fault_status_inv          <= {64{1'b1}};
-                error_code_inv            <= ~ERR_NONE;
-                ch_mismatch_latched       <= {NUM_MASTERS{1'b0}};
-                accum_shadow_fault        <= 1'b0;
+                external_fault_event_a      <= 1'b0;
+                external_fault_event_b      <= 1'b0;
+                external_fault_event_c      <= 1'b0;
+                bus_fault_event_a           <= 1'b0;
+                bus_fault_event_b           <= 1'b0;
+                bus_fault_event_c           <= 1'b0;
+                cfg_fault_event_a           <= 1'b0;
+                cfg_fault_event_b           <= 1'b0;
+                cfg_fault_event_c           <= 1'b0;
+                safety_island_fault_event_a <= 1'b0;
+                safety_island_fault_event_b <= 1'b0;
+                safety_island_fault_event_c <= 1'b0;
+                safety_island_latent_fault_event_a <= 1'b0;
+                safety_island_latent_fault_event_b <= 1'b0;
+                safety_island_latent_fault_event_c <= 1'b0;
+                fault_status_a              <= 64'd0;
+                fault_status_b              <= 64'd0;
+                fault_status_c              <= 64'd0;
+                error_code_a                <= ERR_NONE;
+                error_code_b                <= ERR_NONE;
+                error_code_c                <= ERR_NONE;
+                fault_status_inv              <= {64{1'b1}};
+                error_code_inv                <= ~ERR_NONE;
+                ch_mismatch_latched           <= {NUM_MASTERS{1'b0}};
+                accum_shadow_fault            <= 1'b0;
                 for (ch = 0; ch < NUM_MASTERS; ch = ch + 1)
                     stuck_counter[ch] <= 4'd0;
             end

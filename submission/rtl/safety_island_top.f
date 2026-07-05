@@ -1,4 +1,5 @@
 tmr_voter.v
+tmr_voter_protected.v
 safety_island_axi_read_engine.v
 safety_island_core_logic.v
 safety_island_axi_config_slave.v

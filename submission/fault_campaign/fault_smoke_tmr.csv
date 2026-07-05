@@ -1,0 +1,15 @@
+fault_id,module,hierarchical_path,type,expected_class,campaign
+SM001,config_slave,dut.u_cfg.expected_q_a[0][0],transient_flip,corrected,smoke_tmr
+SM002,config_slave,dut.u_cfg.mask_q_b[0][3],stuck_at_1,corrected,smoke_tmr
+SM003,config_slave,dut.u_cfg.expected_inv_q[0][0],stuck_at_0,latent,smoke_tmr
+SM004,config_slave,dut.u_cfg.entry_valid_q_c[0],transient_flip,corrected,smoke_tmr
+SM005,config_slave,dut.u_cfg.read_interval_b[10],transient_flip,corrected,smoke_tmr
+SM006,axi_read_engine,dut.u_read_engine[0].slot_accum_q_a[0][0],transient_flip,corrected,smoke_tmr
+SM007,axi_read_engine,dut.u_read_engine[0].slot_id_q_b[0],stuck_at_1,corrected,smoke_tmr
+SM008,core_logic,dut.u_core.state_b[0],transient_flip,corrected,smoke_tmr
+SM009,core_logic,dut.u_core.current_master_idx_a[0],stuck_at_1,corrected,smoke_tmr
+SM010,core_logic,dut.u_core.pending_valid_q_b[0],transient_flip,corrected,smoke_tmr
+SM011,fault_detector,dut.u_fault_detector.external_fault_event_a,stuck_at_1,detected,smoke_tmr
+SM012,fault_detector,dut.u_fault_detector.fault_status_a[0],transient_flip,detected,smoke_tmr
+SM013,top,dut.fd_b,stuck_at_1,detected,smoke_tmr
+SM014,top,dut.u_fd_out_tmr.voter_self_fault,force,detected,smoke_tmr

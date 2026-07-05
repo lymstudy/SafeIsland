@@ -178,7 +178,33 @@ module safety_island_core_logic
     wire             state_tmr_mismatch;
 
     assign state = (state_a & state_b) | (state_b & state_c) | (state_a & state_c);
-    assign state_tmr_mismatch = (state_a != state_b) || (state_b != state_c);
+    assign state_tmr_mismatch = (state_a ^ state_b) | (state_a ^ state_c) | (state_b ^ state_c);
+
+    reg [31:0] current_master_idx_a, current_master_idx_b, current_master_idx_c;
+    reg [31:0] current_entry_idx_a, current_entry_idx_b, current_entry_idx_c;
+    wire [31:0] current_master_idx_voted;
+    wire [31:0] current_entry_idx_voted;
+    wire current_master_idx_tmr_mismatch;
+    wire current_entry_idx_tmr_mismatch;
+    wire [31:0] current_master_idx_safe;
+    wire [31:0] current_entry_idx_safe;
+
+    assign current_master_idx_voted = (current_master_idx_a & current_master_idx_b) |
+                                      (current_master_idx_b & current_master_idx_c) |
+                                      (current_master_idx_a & current_master_idx_c);
+    assign current_entry_idx_voted = (current_entry_idx_a & current_entry_idx_b) |
+                                     (current_entry_idx_b & current_entry_idx_c) |
+                                     (current_entry_idx_a & current_entry_idx_c);
+    assign current_master_idx_tmr_mismatch = (current_master_idx_a ^ current_master_idx_b) |
+                                           (current_master_idx_a ^ current_master_idx_c) |
+                                           (current_master_idx_b ^ current_master_idx_c);
+    assign current_entry_idx_tmr_mismatch = (current_entry_idx_a ^ current_entry_idx_b) |
+                                            (current_entry_idx_a ^ current_entry_idx_c) |
+                                            (current_entry_idx_b ^ current_entry_idx_c);
+    assign current_master_idx_safe = (current_master_idx_voted < NUM_MASTERS) ?
+                                     current_master_idx_voted : 32'd0;
+    assign current_entry_idx_safe = (current_entry_idx_voted < NUM_ENTRIES) ?
+                                    current_entry_idx_voted : 32'd0;
 
     reg [3:0]        state_next;
     reg [63:0]       interval_counter;
@@ -208,7 +234,11 @@ module safety_island_core_logic
     reg [DATA_W-1:0] pending_expected_q [0:MAX_OUTSTANDING-1];
     reg [31:0]       pending_master_q   [0:MAX_OUTSTANDING-1];
     reg [31:0]       pending_entry_q    [0:MAX_OUTSTANDING-1];
-    reg              pending_valid_q    [0:MAX_OUTSTANDING-1];
+    (* DONT_TOUCH = "TRUE" *) reg pending_valid_q_a    [0:MAX_OUTSTANDING-1];
+    (* DONT_TOUCH = "TRUE" *) reg pending_valid_q_b    [0:MAX_OUTSTANDING-1];
+    (* DONT_TOUCH = "TRUE" *) reg pending_valid_q_c    [0:MAX_OUTSTANDING-1];
+    wire              pending_valid_q_voted [0:MAX_OUTSTANDING-1];
+    wire              pending_valid_q_tmr_err [0:MAX_OUTSTANDING-1];
     reg [31:0]       pending_wr_ptr;
     reg [31:0]       pending_rd_ptr;
 
@@ -226,6 +256,32 @@ module safety_island_core_logic
     integer cfg_e;
     integer seq_i;
     integer seq_m;
+
+    genvar pv_i;
+    generate
+        for (pv_i = 0; pv_i < MAX_OUTSTANDING; pv_i = pv_i + 1) begin : gen_pending_valid_tmr
+            tmr_voter #(1) u_pv_tmr (
+                .a(pending_valid_q_a[pv_i]),
+                .b(pending_valid_q_b[pv_i]),
+                .c(pending_valid_q_c[pv_i]),
+                .voted(pending_valid_q_voted[pv_i]),
+                .mismatch(pending_valid_q_tmr_err[pv_i])
+            );
+        end
+    endgenerate
+
+    reg [31:0] pending_valid_count;
+    integer pvc_i;
+    wire pending_count_fault_comb;
+
+    always @* begin
+        pending_valid_count = 32'd0;
+        for (pvc_i = 0; pvc_i < MAX_OUTSTANDING; pvc_i = pvc_i + 1) begin
+            if (pending_valid_q_voted[pvc_i])
+                pending_valid_count = pending_valid_count + 32'd1;
+        end
+    end
+    assign pending_count_fault_comb = (pending_valid_count != outstanding_count);
 
     //--------------------------------------------------------------------------
     // 扁平总线访问函数
@@ -422,14 +478,14 @@ module safety_island_core_logic
         current_entry_valid_dec = 1'b0;
 
         for (dec_m = 0; dec_m < NUM_MASTERS; dec_m = dec_m + 1) begin
-            if (current_master_idx == dec_m[31:0])
+            if (current_master_idx_safe == dec_m[31:0])
                 current_base_addr_dec = base_addr_flat[dec_m*ADDR_W +: ADDR_W];
         end
 
         for (dec_m = 0; dec_m < NUM_MASTERS; dec_m = dec_m + 1) begin
             for (dec_e = 0; dec_e < NUM_ENTRIES; dec_e = dec_e + 1) begin
-                if ((current_master_idx == dec_m[31:0]) &&
-                    (current_entry_idx  == dec_e[31:0])) begin
+                if ((current_master_idx_safe == dec_m[31:0]) &&
+                    (current_entry_idx_safe  == dec_e[31:0])) begin
                     current_offset_dec =
                         offset_flat[((dec_m * NUM_ENTRIES) + dec_e)*ADDR_W +: ADDR_W];
                     current_mask_dec =
@@ -464,8 +520,8 @@ module safety_island_core_logic
     wire at_last_master;
     wire at_last_entry;
 
-    assign at_last_master = (current_master_idx == (NUM_MASTERS - 1));
-    assign at_last_entry  = (current_entry_idx  == (NUM_ENTRIES - 1));
+    assign at_last_master = (current_master_idx_safe == (NUM_MASTERS - 1));
+    assign at_last_entry  = (current_entry_idx_safe  == (NUM_ENTRIES - 1));
 
     reg cfg_burst_type_fault_comb;
     reg cfg_burst_len_fault_comb;
@@ -583,7 +639,7 @@ module safety_island_core_logic
     assign response_entry_idx       = pending_entry_q[pending_rd_ptr];
     assign response_master_in_range = (response_master_idx < NUM_MASTERS);
     assign response_fifo_valid      = (outstanding_count != 32'd0) &&
-                                       pending_valid_q[pending_rd_ptr];
+                                       pending_valid_q_voted[pending_rd_ptr];
     always @* begin
         response_done_flag_dec    = 1'b0;
         response_error_flag_dec   = 1'b0;
@@ -618,9 +674,9 @@ module safety_island_core_logic
     wire pop_response_comb;
 
     assign current_read_accept    = get_master_flag(m_read_accept,
-                                                     current_master_idx);
+                                                     current_master_idx_safe);
     assign current_read_req_active= get_master_flag(m_read_req,
-                                                     current_master_idx);
+                                                     current_master_idx_safe);
     assign request_handshake_comb = current_read_req_active & current_read_accept;
     assign issue_slot_available =
         (SUPPORT_OUTSTANDING == 0) ? (outstanding_count == 32'd0) :
@@ -678,8 +734,10 @@ module safety_island_core_logic
     assign state_inv_mismatch_comb = (state_inv != ~state);
 
     assign current_index_fault_comb =
-        (current_master_idx >= NUM_MASTERS) ||
-        (current_entry_idx  >= NUM_ENTRIES);
+        (current_master_idx_voted >= NUM_MASTERS) ||
+        (current_entry_idx_voted  >= NUM_ENTRIES) ||
+        current_master_idx_tmr_mismatch ||
+        current_entry_idx_tmr_mismatch;
 
     assign pending_index_fault_comb =
         (outstanding_count != 32'd0) &&
@@ -692,7 +750,7 @@ module safety_island_core_logic
 
     assign pending_valid_fault_comb =
         (outstanding_count != 32'd0) &&
-        !pending_valid_q[pending_rd_ptr];
+        !pending_valid_q_voted[pending_rd_ptr];
 
     assign accum_shadow_fault_comb = (fault_or_accum_inv != ~fault_or_accum);
 
@@ -718,6 +776,9 @@ module safety_island_core_logic
         accum_shadow_fault_comb     |
         kat_fail_comb               |
         state_tmr_mismatch          |
+        current_master_idx_tmr_mismatch |
+        current_entry_idx_tmr_mismatch |
+        pending_count_fault_comb    |
         safety_fault_q_tmr_mismatch |
         safety_error_code_tmr_mismatch |
         outstanding_fault_comb      |
@@ -732,6 +793,9 @@ module safety_island_core_logic
         accum_shadow_fault_comb     |
         kat_fail_comb               |
         state_tmr_mismatch          |
+        current_master_idx_tmr_mismatch |
+        current_entry_idx_tmr_mismatch |
+        pending_count_fault_comb    |
         safety_fault_q_tmr_mismatch |
         safety_error_code_tmr_mismatch |
         outstanding_fault_comb      |
@@ -746,6 +810,9 @@ module safety_island_core_logic
         accum_shadow_fault_comb     |
         kat_fail_comb               |
         state_tmr_mismatch          |
+        current_master_idx_tmr_mismatch |
+        current_entry_idx_tmr_mismatch |
+        pending_count_fault_comb    |
         safety_fault_q_tmr_mismatch |
         safety_error_code_tmr_mismatch |
         outstanding_fault_comb      |
@@ -952,6 +1019,8 @@ module safety_island_core_logic
 
         if (safety_fault_stable_comb)
             state_next = ST_SAFE_ERROR;
+        if (fsm_state_illegal_comb)
+            state_next = ST_SAFE_ERROR;
     end
 
     always @* begin
@@ -1009,6 +1078,12 @@ module safety_island_core_logic
             scan_start_pulse          <= 1'b0;
             current_master_idx        <= 32'd0;
             current_entry_idx         <= 32'd0;
+            current_master_idx_a      <= 32'd0;
+            current_master_idx_b      <= 32'd0;
+            current_master_idx_c      <= 32'd0;
+            current_entry_idx_a       <= 32'd0;
+            current_entry_idx_b       <= 32'd0;
+            current_entry_idx_c       <= 32'd0;
 
             // fd_resp_* outputs
             fd_resp_valid             <= 1'b0;
@@ -1025,7 +1100,9 @@ module safety_island_core_logic
                 pending_expected_q[seq_i] <= {DATA_W{1'b0}};
                 pending_master_q[seq_i]   <= 32'd0;
                 pending_entry_q[seq_i]    <= 32'd0;
-                pending_valid_q[seq_i]    <= 1'b0;
+                pending_valid_q_a[seq_i]    <= 1'b0;
+                pending_valid_q_b[seq_i]    <= 1'b0;
+                pending_valid_q_c[seq_i]    <= 1'b0;
             end
         end else begin
             scan_once_d     <= scan_once;
@@ -1063,13 +1140,21 @@ module safety_island_core_logic
                     scan_busy                 <= 1'b0;
                     current_master_idx        <= 32'd0;
                     current_entry_idx         <= 32'd0;
+                    current_master_idx_a      <= 32'd0;
+                    current_master_idx_b      <= 32'd0;
+                    current_master_idx_c      <= 32'd0;
+                    current_entry_idx_a       <= 32'd0;
+                    current_entry_idx_b       <= 32'd0;
+                    current_entry_idx_c       <= 32'd0;
 
                     for (seq_i = 0; seq_i < MAX_OUTSTANDING; seq_i = seq_i + 1) begin
                         pending_mask_q[seq_i]     <= {DATA_W{1'b0}};
                         pending_expected_q[seq_i] <= {DATA_W{1'b0}};
                         pending_master_q[seq_i]   <= 32'd0;
                         pending_entry_q[seq_i]    <= 32'd0;
-                        pending_valid_q[seq_i]    <= 1'b0;
+                        pending_valid_q_a[seq_i]    <= 1'b0;
+                pending_valid_q_b[seq_i]    <= 1'b0;
+                pending_valid_q_c[seq_i]    <= 1'b0;
                     end
                 end else begin
                     // Wait for outstanding drain, force FSM to drain outstanding
@@ -1084,6 +1169,28 @@ module safety_island_core_logic
                 state_b     <= state_next;
                 state_c     <= state_next;
                 state_inv   <= ~state_next;
+
+                // TMR feedback repair
+                if (state_tmr_mismatch) begin
+                    state_a   <= state;
+                    state_b   <= state;
+                    state_c   <= state;
+                    state_inv <= ~state;
+                end
+                if (current_master_idx_tmr_mismatch) begin
+                    current_master_idx_a <= current_master_idx_voted;
+                    current_master_idx_b <= current_master_idx_voted;
+                    current_master_idx_c <= current_master_idx_voted;
+                end
+                if (current_entry_idx_tmr_mismatch) begin
+                    current_entry_idx_a <= current_entry_idx_voted;
+                    current_entry_idx_b <= current_entry_idx_voted;
+                    current_entry_idx_c <= current_entry_idx_voted;
+                end
+
+                current_master_idx <= current_master_idx_safe;
+                current_entry_idx  <= current_entry_idx_safe;
+
                 scan_busy   <= scan_busy_next_comb;
                 safety_fault_q_a      <= safety_fault_comb;
                 safety_fault_q_b      <= safety_fault_comb;
@@ -1115,7 +1222,9 @@ module safety_island_core_logic
 
                 // ── 弹出完成响应 → 发送至 fault_detector ──
                 if (pop_response_comb) begin
-                    pending_valid_q[pending_rd_ptr] <= 1'b0;
+                    pending_valid_q_a[pending_rd_ptr] <= 1'b0;
+                    pending_valid_q_b[pending_rd_ptr] <= 1'b0;
+                    pending_valid_q_c[pending_rd_ptr] <= 1'b0;
                     pending_rd_ptr <= inc_pending_ptr(pending_rd_ptr);
 
                     // Forward to fault detector
@@ -1148,9 +1257,11 @@ module safety_island_core_logic
                 if (push_request_comb) begin
                     pending_mask_q[pending_wr_ptr]     <= current_mask;
                     pending_expected_q[pending_wr_ptr] <= current_expected;
-                    pending_master_q[pending_wr_ptr]   <= current_master_idx;
-                    pending_entry_q[pending_wr_ptr]    <= current_entry_idx;
-                    pending_valid_q[pending_wr_ptr]    <= 1'b1;
+                    pending_master_q[pending_wr_ptr]   <= current_master_idx_safe;
+                    pending_entry_q[pending_wr_ptr]    <= current_entry_idx_safe;
+                    pending_valid_q_a[pending_wr_ptr]  <= 1'b1;
+                    pending_valid_q_b[pending_wr_ptr]  <= 1'b1;
+                    pending_valid_q_c[pending_wr_ptr]  <= 1'b1;
                     pending_wr_ptr                     <= inc_pending_ptr(pending_wr_ptr);
                 end
 
@@ -1162,13 +1273,21 @@ module safety_island_core_logic
 
                 case (state)
                     ST_IDLE: begin
-                        current_master_idx <= 32'd0;
-                        current_entry_idx  <= 32'd0;
+                        current_master_idx_a <= 32'd0;
+                        current_master_idx_b <= 32'd0;
+                        current_master_idx_c <= 32'd0;
+                        current_entry_idx_a  <= 32'd0;
+                        current_entry_idx_b  <= 32'd0;
+                        current_entry_idx_c  <= 32'd0;
                     end
 
                     ST_PREP_SCAN: begin
-                        current_master_idx <= 32'd0;
-                        current_entry_idx  <= 32'd0;
+                        current_master_idx_a <= 32'd0;
+                        current_master_idx_b <= 32'd0;
+                        current_master_idx_c <= 32'd0;
+                        current_entry_idx_a  <= 32'd0;
+                        current_entry_idx_b  <= 32'd0;
+                        current_entry_idx_c  <= 32'd0;
                         fault_or_accum     <= {DATA_W{1'b0}};
                         fault_or_accum_inv <= {DATA_W{1'b1}};
                         pending_wr_ptr     <= 32'd0;
@@ -1180,7 +1299,9 @@ module safety_island_core_logic
                             pending_expected_q[seq_i] <= {DATA_W{1'b0}};
                             pending_master_q[seq_i]   <= 32'd0;
                             pending_entry_q[seq_i]    <= 32'd0;
-                            pending_valid_q[seq_i]    <= 1'b0;
+                            pending_valid_q_a[seq_i]    <= 1'b0;
+                pending_valid_q_b[seq_i]    <= 1'b0;
+                pending_valid_q_c[seq_i]    <= 1'b0;
                         end
                         kat_rd_done    <= 1'b0;
                         kat_rd_data    <= {DATA_W{1'b0}};
@@ -1192,7 +1313,7 @@ module safety_island_core_logic
                         if (!cfg_fault_comb && !safety_fault_comb &&
                             issue_slot_available && current_burst_cfg_legal) begin
                             for (seq_m = 0; seq_m < NUM_MASTERS; seq_m = seq_m + 1) begin
-                                if (seq_m == current_master_idx) begin
+                                if (seq_m == current_master_idx_safe) begin
                                     if (!request_handshake_comb)
                                         m_read_req[seq_m] <= 1'b1;
                                     m_read_addr_flat[seq_m*ADDR_W +: ADDR_W]
@@ -1210,11 +1331,17 @@ module safety_island_core_logic
                         if (!(at_last_entry && (outstanding_count != 32'd0))) begin
                             if (at_last_entry) begin
                                 if (!at_last_master) begin
-                                    current_master_idx <= current_master_idx + 32'd1;
-                                    current_entry_idx  <= 32'd0;
+                                    current_master_idx_a <= current_master_idx_safe + 32'd1;
+                                    current_master_idx_b <= current_master_idx_safe + 32'd1;
+                                    current_master_idx_c <= current_master_idx_safe + 32'd1;
+                                    current_entry_idx_a  <= 32'd0;
+                                    current_entry_idx_b  <= 32'd0;
+                                    current_entry_idx_c  <= 32'd0;
                                 end
                             end else begin
-                                current_entry_idx <= current_entry_idx + 32'd1;
+                                current_entry_idx_a <= current_entry_idx_safe + 32'd1;
+                                current_entry_idx_b <= current_entry_idx_safe + 32'd1;
+                                current_entry_idx_c <= current_entry_idx_safe + 32'd1;
                             end
                         end
                     end

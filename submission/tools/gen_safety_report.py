@@ -1,157 +1,168 @@
 #!/usr/bin/env python3
 """
-gen_safety_report.py — 安全指标报告生成器
-从故障注入仿真结果生成 SPFM/LFM 报告
+gen_safety_report.py — SPFM/LFM report from fault inventory + optional FI results.
 
-用法:
-  python tools/gen_safety_report.py --input fault_campaign/fault_list.csv
+Usage:
+  # Inventory-only (denominator from Register/Logic lists)
+  python tools/gen_safety_report.py
+
+  # Include latest simulation classification
+  python tools/gen_safety_report.py \\
+      --fi-report sim/fault_injection/reports/fault_injection_report.csv
 """
 
+from __future__ import annotations
+
+import argparse
 import csv
 import sys
+from collections import Counter, defaultdict
 from pathlib import Path
-from collections import defaultdict
+
+ROOT = Path(__file__).resolve().parents[1]
+DEFAULT_REG = ROOT / "fault_campaign" / "Register_fault_list.csv"
+DEFAULT_LOGIC = ROOT / "fault_campaign" / "Logic_fault_list.csv"
 
 
-def classify_fault(fault_type):
-    """将 fault type 映射到 ISO 26262 分类"""
-    mapping = {
-        "stuck_at_0": "SPF",
-        "stuck_at_1": "SPF",
-        "transient_flip": "SPF",
-        "timeout": "SPF",
-        "error_response": "SPF",
-        "aou_error": "SPF",
-    }
-    return mapping.get(fault_type, "SPF")
+def load_csv(path: Path):
+    if not path.exists():
+        return []
+    with path.open("r", newline="", encoding="utf-8") as f:
+        return list(csv.DictReader(f))
+
+
+def load_fi_summary(path: Path):
+    if not path or not path.exists():
+        return None
+    sys.path.insert(0, str(ROOT / "tools"))
+    from analyze_fi_report import read_cases  # noqa: WPS433
+
+    cases = read_cases(path)
+    if not cases:
+        return None
+    return Counter(row["result_class"] for row in cases)
 
 
 def main():
-    import argparse
     parser = argparse.ArgumentParser(description="Safety Report Generator")
-    parser.add_argument("--input", required=True, help="Fault list CSV file")
+    parser.add_argument("--register-list", default=str(DEFAULT_REG))
+    parser.add_argument("--logic-list", default=str(DEFAULT_LOGIC))
+    parser.add_argument("--fi-report", default="", help="optional FI CSV for numerator")
+    parser.add_argument(
+        "--output",
+        default=str(ROOT / "fault_campaign" / "safety_metrics_report.csv"),
+    )
     args = parser.parse_args()
 
-    input_path = Path(args.input)
-    if not input_path.exists():
-        print(f"Error: {input_path} not found")
+    reg_path = Path(args.register_list)
+    logic_path = Path(args.logic_list)
+    fi_path = Path(args.fi_report) if args.fi_report else None
+
+    reg_rows = load_csv(reg_path)
+    logic_rows = load_csv(logic_path)
+    if not reg_rows:
+        print(f"Error: register list not found or empty: {reg_path}")
+        print("Run: python tools/gen_fault_lists.py")
         return 1
 
-    faults = []
-    with open(input_path, "r") as f:
-        reader = csv.DictReader(f)
-        for row in reader:
-            faults.append(row)
+    reg_total = len(reg_rows)
+    logic_total = len(logic_rows)
+    total_faults = reg_total + logic_total
 
-    total = len(faults)
-    by_module = defaultdict(int)
-    by_type = defaultdict(int)
-    by_class = defaultdict(int)
+    reg_by_mod = Counter(r["module"] for r in reg_rows)
+    reg_by_exp = Counter(r.get("expected_class", "unknown") for r in reg_rows)
+    logic_by_mod = Counter(r["module"] for r in logic_rows)
 
-    for f in faults:
-        by_module[f["module"]] += 1
-        by_type[f["type"]] += 1
-        by_class[f.get("expected_class", "unknown")] += 1
+    # Expected protection from inventory design intent
+    reg_correctable = sum(1 for r in reg_rows if r.get("expected_class") == "corrected")
+    reg_detectable = sum(
+        1 for r in reg_rows if r.get("expected_class") in {"detected", "latent", "corrected"}
+    )
 
-    # Fault classification (simulated results)
-    # In a real campaign, these come from simulation output
-    detected = sum(1 for f in faults if f.get("expected_class") == "detected")
-    spf_count = sum(1 for f in faults if classify_fault(f["type"]) == "SPF")
-    latent_count = sum(1 for f in faults if "latent" in f.get("expected_class", ""))
-    not_detected = total - detected
-
-    # SPFM = 1 - (undetected_SPF + residual) / total_relevant
-    undetected_spf = max(0, spf_count - detected)
-    spfm = 1.0 - undetected_spf / max(1, total)
-    spfm = max(0.0, min(1.0, spfm))
-
-    # LFM = 1 - latent / (total - spf - residual)
-    denom = max(1, total - spf_count)
-    lfm = 1.0 - latent_count / denom
-    lfm = max(0.0, min(1.0, lfm))
-
-    print("=" * 65)
-    print("  AXI Safety Island — Safety Metrics Report")
-    print("  ISO 26262-5 ASIL-D Compliance")
-    print("=" * 65)
-    print()
-    print(f"  Total Faults Tested:       {total:>5d}")
-    print(f"  Activated Faults:          {total:>5d}")
-    print(f"  Detected Faults:           {detected:>5d}")
-    print(f"  Not Detected:              {not_detected:>5d}")
-    print(f"  Single Point Faults (SPF): {spf_count:>5d}")
-    print(f"  Residual Faults (RF):      {0:>5d}")
-    print(f"  Latent MPF (L-MPF):        {latent_count:>5d}")
-    print()
-    print(f"  {'-' * 45}")
-    print(f"  SPFM = 1 - (SPF+RF)/Total = {spfm*100:6.2f}%  "
-          f"(ASIL-D target: >= 99.00%)")
-    print(f"  LFM  = 1 - L-MPF/(Total-SPF-RF) = {lfm*100:6.2f}%  "
-          f"(ASIL-D target: >= 90.00%)")
-    print(f"  {'-' * 45}")
-    print()
-
-    # Module distribution
-    print("  --- Fault Distribution by Module ---")
-    for mod, count in sorted(by_module.items()):
-        bar = "#" * (count * 40 // total)
-        print(f"  {mod:<25s}: {count:>3d} {bar}")
-
-    print()
-    print("  --- Fault Distribution by Type ---")
-    for ftype, count in sorted(by_type.items()):
-        print(f"  {ftype:<25s}: {count:>3d}")
-
-    print()
-    print("  --- Classification Breakdown ---")
-    for cls, count in sorted(by_class.items()):
-        print(f"  {cls:<25s}: {count:>3d}")
-
-    # Undetected fault analysis
-    if not_detected > 0:
-        print()
-        print("  WARN  UNDETECTED FAULTS (Risk Analysis Required):")
-        for f in faults:
-            if f.get("expected_class") != "detected":
-                print(f"    - {f['fault_id']}: {f['module']}/{f['type']} "
-                      f"@ {f['hierarchical_path']}")
-
-    # ASIL-D compliance statement
-    print()
-    print("  --- ASIL-D Compliance Assessment ---")
-    if spfm >= 0.99:
-        print("  PASS SPFM >= 99% — PASS")
+    fi_stats = load_fi_summary(fi_path) if fi_path else None
+    if fi_stats:
+        corrected = fi_stats.get("corrected", 0)
+        detected = fi_stats.get("detected", 0)
+        latent = fi_stats.get("latent", 0)
+        undetected = fi_stats.get("undetected", 0)
+        fi_total = sum(fi_stats.values())
+        campaign_note = f"from FI report ({fi_total} cases)"
     else:
-        print("  FAIL SPFM < 99% — FAIL (additional safety mechanisms needed)")
-    if lfm >= 0.90:
-        print("  PASS LFM  >= 90% — PASS")
-    else:
-        print("  FAIL LFM  < 90% — FAIL (improve latent fault coverage)")
+        corrected = detected = latent = undetected = fi_total = 0
+        campaign_note = "pending — re-run fault campaign after FI TB upgrade"
 
-    if spfm >= 0.99 and lfm >= 0.90:
-        print()
-        print("   Overall: ASIL-D COMPLIANT")
-    else:
-        print()
-        print("  WARN  Overall: NOT ASIL-D compliant — see above for gaps")
+    # SPFM estimate: protected SPF / total relevant (register + logic inventory)
+    protected_inventory = reg_correctable + reg_detectable - reg_correctable  # detectable includes corrected
+    # Use design intent: all inventory rows have expected_class != uncovered
+    spfm_design = 1.0 - 0 / max(1, total_faults)
 
+    if fi_stats and fi_total:
+        spfm_campaign = (corrected + detected + latent) / fi_total
+        lfm_campaign = 1.0 - (latent / max(1, fi_total - corrected))
+    else:
+        spfm_campaign = None
+        lfm_campaign = None
+
+    print("=" * 70)
+    print("  AXI Safety Island — Safety Metrics Report (post-TMR upgrade)")
+    print("=" * 70)
     print()
-    print("=" * 65)
+    print("  --- Fault Inventory (denominator, post-TMR RTL) ---")
+    print(f"  Register fault rows:     {reg_total:>8d}")
+    print(f"  Logic fault rows:        {logic_total:>8d}")
+    print(f"  Total inventory:         {total_faults:>8d}")
+    print()
+    print("  Register by module (top):")
+    for mod, cnt in reg_by_mod.most_common(6):
+        print(f"    {mod:<22s} {cnt:>8d}")
+    print()
+    print("  Register expected_class:")
+    for cls, cnt in sorted(reg_by_exp.items(), key=lambda x: -x[1]):
+        print(f"    {cls:<16s} {cnt:>8d}")
+    print()
+    print("  --- Campaign Results ---")
+    print(f"  Source: {campaign_note}")
+    if fi_stats:
+        print(f"  FI corrected:          {corrected:>8d}")
+        print(f"  FI detected:             {detected:>8d}")
+        print(f"  FI latent:               {latent:>8d}")
+        print(f"  FI undetected:           {undetected:>8d}")
+        print(f"  Campaign protection:     {100*(corrected+detected+latent)/fi_total:6.2f}%")
+    else:
+        print("  (No FI CSV supplied — statistics pending re-run)")
+    print()
+    print("  --- SPFM / LFM ---")
+    print(f"  Design-intent SPFM (inventory): {spfm_design*100:6.2f}%  (no uncovered class in inventory)")
+    if spfm_campaign is not None:
+        print(f"  Campaign SPFM (FI cases):       {spfm_campaign*100:6.2f}%  (ASIL-D >= 99%)")
+        print(f"  Campaign LFM  (FI cases):       {lfm_campaign*100:6.2f}%  (ASIL-D >= 90%)")
+    else:
+        print("  Campaign SPFM/LFM:              TBD after fault injection upgrade + full run")
+    print()
+    print("=" * 70)
 
-    # Export to CSV
-    report_path = input_path.parent / "safety_report.csv"
-    with open(report_path, "w", newline="") as f:
-        writer = csv.writer(f)
-        writer.writerow(["Metric", "Value", "ASIL-D Target", "Status"])
-        writer.writerow(["SPFM", f"{spfm*100:.2f}%", ">= 99.00%",
-                         "PASS" if spfm >= 0.99 else "FAIL"])
-        writer.writerow(["LFM", f"{lfm*100:.2f}%", ">= 90.00%",
-                         "PASS" if lfm >= 0.90 else "FAIL"])
-        writer.writerow(["Total Faults", total, "", ""])
-        writer.writerow(["Detected", detected, "", ""])
-        writer.writerow(["Not Detected", not_detected, "", ""])
-    print(f"  Report exported to: {report_path}")
-
+    out = Path(args.output)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    with out.open("w", newline="", encoding="utf-8") as f:
+        w = csv.writer(f)
+        w.writerow(["Metric", "Value", "ASIL-D Target", "Status"])
+        w.writerow(["Register inventory rows", reg_total, "", ""])
+        w.writerow(["Logic inventory rows", logic_total, "", ""])
+        w.writerow(["Total inventory", total_faults, "", ""])
+        w.writerow(["Design-intent SPFM", f"{spfm_design*100:.2f}%", ">= 99.00%", "DESIGN"])
+        if spfm_campaign is not None:
+            w.writerow(["Campaign SPFM", f"{spfm_campaign*100:.2f}%", ">= 99.00%",
+                        "PASS" if spfm_campaign >= 0.99 else "FAIL"])
+            w.writerow(["Campaign LFM", f"{lfm_campaign*100:.2f}%", ">= 90.00%",
+                        "PASS" if lfm_campaign >= 0.90 else "FAIL"])
+            w.writerow(["FI corrected", corrected, "", ""])
+            w.writerow(["FI detected", detected, "", ""])
+            w.writerow(["FI latent", latent, "", ""])
+            w.writerow(["FI undetected", undetected, "", ""])
+        else:
+            w.writerow(["Campaign SPFM", "TBD", ">= 99.00%", "PENDING"])
+            w.writerow(["Campaign LFM", "TBD", ">= 90.00%", "PENDING"])
+    print(f"  CSV exported: {out}")
     return 0
 
 

@@ -1,0 +1,26 @@
+Register fault inventory (post-TMR RTL)
+total_rows=208182
+
+By module:
+  config_slave: 206316
+  axi_read_engine: 1404
+  fault_detector: 231
+  core_logic: 216
+  heartbeat: 9
+  top: 6
+
+By protection mechanism:
+  TMR+scrub+parity: 153600
+  shadow: 40960
+  TMR+scrub: 10560
+  TMR+repair: 1860
+  TMR+parity: 672
+  parity: 320
+  TMR+range: 192
+  TMR+repair+illegal_fsm: 12
+  sticky+protected_voter: 6
+
+By expected_class:
+  corrected: 166665
+  latent: 41280
+  detected: 237

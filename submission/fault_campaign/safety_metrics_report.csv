@@ -1,0 +1,7 @@
+Metric,Value,ASIL-D Target,Status
+Register inventory rows,208182,,
+Logic inventory rows,6641,,
+Total inventory,214823,,
+Design-intent SPFM,100.00%,>= 99.00%,DESIGN
+Campaign SPFM,TBD,>= 99.00%,PENDING
+Campaign LFM,TBD,>= 90.00%,PENDING

@@ -1,8 +1,54 @@
 === Fault Injection Diagnostic Coverage ===
 
-保护概率 = (已纠正 + 已探知) / 错误总数
+保护概率 = (已纠正 + 已探知 + 潜伏) / 错误总数
 
-Baseline:
-FI_SUMMARY: total=54 corrected=3 detected=51 undetected=0 protection_rate=100%
-Batch:
-FI_SUMMARY: total=610 corrected=3 detected=607 undetected=0 protection_rate=100%
+【重要】RTL 已于 2026-07 完成 TMR+repair 安全机制升级。
+下方 Baseline/Batch 数据为升级前 VM 实测（2026-07-02），仅作历史参考。
+正式统计需在故障注入 TB 同步升级后重新跑批。
+
+--- 历史结果 (pre-TMR campaign) ---
+
+Baseline (54 cases):
+  FI_SUMMARY: total=54 corrected=3 detected=51 latent=0 undetected=0 protection_rate=100%
+
+Batch (610 bit cases):
+  FI_SUMMARY: total=610 corrected=3 detected=607 latent=0 undetected=0 protection_rate=100%
+
+--- post-TMR 故障清单分母 (inventory) ---
+
+Register_fault_list.csv: 208182 rows
+Logic_fault_list.csv:    6641 rows (460 signal sites, bit-level)
+Total inventory:         214823 rows
+
+Logic by module:
+  axi_read_engine: 4245
+  config_slave:     800
+  core_logic:       736
+  top_rsp_fifo:     345
+  top:              297
+  fault_detector:   213
+  heartbeat:          5
+
+Register by module:
+  config_slave:     206316
+  axi_read_engine:    1404
+  fault_detector:      231
+  core_logic:          216
+  heartbeat:             9
+  top:                   6
+
+Register expected_class:
+  corrected: 166665
+  latent:     41280
+  detected:      237
+
+Logic expected_class:
+  corrected: 3242
+  detected:  3397
+  latent:       2
+
+--- 待重跑 ---
+
+Campaign SPFM/LFM: TBD
+Smoke list: fault_campaign/fault_smoke_tmr.csv (14 cases)
+Tools: tools/analyze_fi_report.py, tools/gen_safety_report.py

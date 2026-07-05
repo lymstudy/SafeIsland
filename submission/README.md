@@ -21,7 +21,11 @@ submission/
 ├── sim/
 │   ├── functional/           功能仿真结果 + 行覆盖率
 │   └── fault_injection/      注错结果 + 诊断覆盖率
-├── fault_campaign/           注错配置 CSV
+├── fault_campaign/           注错配置 CSV + post-TMR 故障清单
+│   ├── Register_fault_list.csv
+│   ├── Logic_fault_list.csv
+│   ├── fault_smoke_tmr.csv
+│   └── README.md
 └── tools/                    安全报告生成脚本
 ```
 
@@ -54,21 +58,22 @@ bash run_all.sh
 
 详细说明见 scripts/环境运行说明.md
 
-## 验证结果 (VM 实测 2026-07-02)
+## 验证结果
 
-| 项目 | 结果 |
-|------|------|
-| 功能仿真 | 34/34 PASS |
-| 注错基线 | 54/54, 保护率 100% |
-| 注错全量 bit | 610/610, 保护率 100% |
-| 代码行覆盖率 | build.vdb 已生成 (Line/Tgl/Cond/FSM) |
-| SPFM / LFM | 100% / 100% |
+| 项目 | 状态 | 说明 |
+|------|------|------|
+| 功能仿真 | 待重跑 | RTL TMR 升级后需 VM 回归 34 case |
+| 注错基线 (54) | 历史参考 | 2026-07-02: 保护率 100% (corrected=3) |
+| 注错全量 bit (610) | 历史参考 | legacy 路径，待 FI TB 扩展 TMR 目标 |
+| post-TMR 故障清单 | 已更新 | Register 208182 + Logic 6641 = 214823 rows |
+| Campaign SPFM/LFM | 待重跑 | 见 `fault_campaign/safety_metrics_report.csv` |
 
-结果文件:
-- sim/functional/logs/full_run.log
-- sim/functional/coverage/build.vdb
-- sim/fault_injection/logs/fault_run.log, batch_run.log
-- sim/fault_injection/diagnostic_coverage_summary.txt
+结果与工具:
+- `sim/fault_injection/diagnostic_coverage_summary.txt` — 诊断覆盖率摘要
+- `fault_campaign/Register_fault_list.csv` — post-TMR 寄存器故障清单
+- `fault_campaign/Logic_fault_list.csv` — 逻辑故障清单
+- `fault_campaign/fault_smoke_tmr.csv` — 升级后 smoke 用例
+- `tools/gen_fault_lists.py` / `analyze_fi_report.py` / `gen_safety_report.py`
 
 ## RTL 架构
 
@@ -79,8 +84,16 @@ safety_island_top
 ├── safety_island_fault_detector     故障分类
 ├── safety_island_heartbeat          心跳自检
 ├── safety_island_axi_read_engine×5  读引擎 + CRC-16
-└── tmr_voter                        TMR 表决
+├── tmr_voter                        TMR 表决
+└── tmr_voter_protected              自保护 TMR 表决
 ```
+
+升级后安全机制要点:
+- **corrected**: TMR majority + 下一拍 repair，单点 flip/stuck 不改变功能输出
+- **detected**: 10 cycle 内 `fault_detect` / `safety_island_fault_detect`
+- **latent**: shadow/parity/TMR mismatch 上报，功能仍正确
+- config_slave 配置表三副本 + scrub；read_engine slot TMR；core FSM/索引/pending TMR
+- top sticky fault latch + protected voter；fault_detector event/status TMR
 
 ## 关键参数
 

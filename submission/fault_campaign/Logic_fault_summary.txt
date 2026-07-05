@@ -1,0 +1,28 @@
+Logic fault inventory (post-TMR RTL, bit-level)
+total_rows=6641
+
+By module:
+  axi_read_engine: 4245
+  config_slave: 800
+  core_logic: 736
+  top_rsp_fifo: 345
+  top: 297
+  fault_detector: 213
+  heartbeat: 5
+
+signal_sites=460
+
+By logic_kind:
+  tmr_voter_logic: 2831
+  comb_logic: 2441
+  crc_check_logic: 490
+  rsp_fifo_comb_logic: 325
+  fault_detect_logic: 252
+  axi_decode_logic: 245
+  axi_handshake_logic: 37
+  tmr_voter_protected: 20
+
+By expected_class:
+  detected: 3397
+  corrected: 3242
+  latent: 2
