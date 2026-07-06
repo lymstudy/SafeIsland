@@ -204,6 +204,7 @@ module safety_island_top #(
     wire                                      heartbeat_fault;
     wire                                      heartbeat_active;
     wire                                      heartbeat_test_inject;
+    wire                                      heartbeat_self_test_clear;
     wire [NUM_MASTERS-1:0]                    read_engine_safety_fault;
     wire [NUM_MASTERS-1:0]                    rsp_fifo_safety_fault;
     wire                                      datapath_safety_fault;
@@ -226,7 +227,7 @@ module safety_island_top #(
 
     assign datapath_safety_fault = (|read_engine_safety_fault) | (|rsp_fifo_safety_fault);
     assign aggregate_safety_fault = core_safety_fault | datapath_safety_fault;
-    assign aggregate_safety_error_code = core_safety_fault ? core_safety_error_code : 8'h48;
+    assign aggregate_safety_error_code = core_safety_fault ? core_safety_error_code : 8'h50;
 
     wire fd_comb_raw;
     wire sifd_comb_raw;
@@ -369,7 +370,7 @@ module safety_island_top #(
         .rst                  (rst),
         .enable               (cfg_enable),
         .scan_once            (cfg_scan_once),
-        .clear_core_status    (cfg_clear_core_status),
+        .clear_core_status    (cfg_clear_core_status | heartbeat_self_test_clear),
         .read_interval        (cfg_read_interval),
         .base_addr_flat       (cfg_base_addr_flat),
         .offset_flat          (cfg_offset_flat),
@@ -442,7 +443,7 @@ module safety_island_top #(
         .fd_resp_timeout        (fd_resp_timeout),
         .scan_start_pulse       (scan_start_pulse),
         .scan_done_pulse        (scan_done_pulse),
-        .clear_status           (cfg_clear_core_status),
+        .clear_status           (cfg_clear_core_status | heartbeat_self_test_clear),
         .cfg_illegal            (cfg_illegal_out | cfg_fault_comb_out),
         .cfg_shadow_error       (cfg_shadow_error_out),
         .cfg_interval_zero      (cfg_interval_fault_out),
@@ -473,6 +474,7 @@ module safety_island_top #(
         .test_inject                  (heartbeat_test_inject),
         .heartbeat_fault              (heartbeat_fault),
         .heartbeat_active             (heartbeat_active),
+        .heartbeat_self_test_clear    (heartbeat_self_test_clear),
         .safety_island_fault_detect   (safety_island_fault_detect)
     );
 
@@ -698,7 +700,7 @@ module safety_island_top #(
             sifd_b  <= 1'b0;
             sifd_c  <= 1'b0;
         end else begin
-            if (cfg_clear_core_status) begin
+            if (cfg_clear_core_status || heartbeat_self_test_clear) begin
                 fd_a   <= 1'b0;
                 fd_b   <= 1'b0;
                 fd_c   <= 1'b0;

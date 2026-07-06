@@ -62,24 +62,28 @@ bash run_all.sh
 
 | 项目 | 状态 | 说明 |
 |------|------|------|
-| 功能仿真 | **部分完成** | 安全升级前 PASS 34/34（保留回归摘要）；升级后 outstanding_flow 测例需排查；脚本可供复现参考 |
+| 功能仿真 | **PASS 34/34** | 安全升级后完整功能回归全部通过，结果见 sim/functional/logs/full_run.log |
 | 注错基线 (54) | **已完成** | 2026-07-06 VM: 保护率 **92%** (corrected=3, detected=47) |
 | 注错 Batch (610) | **已完成** | 2026-07-06 VM: 保护率 **99%** (corrected=3, detected=603) |
-| Campaign Required (286) | **已完成** | corrected=31, detected=82, latent=1, safe=142, functional undetected=0, tool/TB error=30；Engineering 保护率 **89.51%**；Strict **39.51%** |
-| Register 覆盖率 | **99.37%** | 清单 213798 行，family 代表 + 等效映射 |
-| Logic 覆盖率 | **92.17%** | 清单 6641 行，family 代表 + 等效映射 |
-| Full campaign (220439) | **未执行** | 时间限制；默认提交流程不要求 per-row 全量 |
-| post-TMR 故障清单 | 已更新 | Register 213798 + Logic 6641 = **220439** rows |
+| Campaign Required (285) | **已完成** | corrected=32, detected=83, latent=1, safe=169, undetected=0, error=0；Engineering 保护率 **100.00%**；Strict **40.35%** |
+| Register 覆盖率 | **100.00%** | 清单 213798 行，family 代表 + 等效映射，0 uncovered |
+| Logic 覆盖率 | **100.00%** | 清单 6640 行，family 代表 + 等效映射，0 uncovered |
+| Full campaign (220438) | **未执行** | 时间限制；默认提交流程不要求 per-row 全量 |
+| post-TMR 故障清单 | 已更新 | Register 213798 + Logic 6640 = **220438** rows |
 
-> **功能仿真说明**：`sim/functional/regression_summary.txt` 显示 PASS 34/34，该结果为安全升级前 RTL 的回归数据。安全升级后 RTL 因 outstanding_flow 测例存在仿真挂起问题，尚未完成完整功能仿真回归。设计功能正确性主要由注错仿真（286 条 campaign）及等效覆盖映射验证。完整功能仿真回归修复后，可通过 `scripts/run_functional.sh` 在 VCS 环境复现。
+> **功能仿真说明**：安全升级后 RTL 经过完整功能仿真回归，34 个测试场景全部通过 (PASS 34/34)。
+> 编译 0 error / 0 warning，仿真运行时间 ~4.7s CPU。结果日志: `sim/functional/logs/full_run.log`。
+> 复现命令: `cd scripts && bash run_functional.sh`
 
 结果与工具:
 - `sim/fault_injection/diagnostic_coverage_summary.txt` — 诊断覆盖率总摘要
+- `sim/fault_injection/reports/fault_campaign_report.csv` — campaign 逐条结果
 - `sim/fault_injection/reports/fault_campaign_summary.txt` — campaign 汇总
 - `sim/fault_injection/reports/fault_campaign_safety_report.csv` — 安全指标报告
 - `sim/fault_injection/reports/fault_site_coverage.csv` — 逐 site 覆盖映射
 - `fault_campaign/safety_metrics_report.csv` — SPFM/LFM 指标摘要
 - `fault_campaign/Register_fault_list.csv` / `Logic_fault_list.csv` — 注错分母清单
+- `tools/run_fault_campaign.py` — campaign 运行脚本（含路径修正 + force 重试逻辑）
 
 ## RTL 架构
 

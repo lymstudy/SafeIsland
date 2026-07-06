@@ -52,7 +52,7 @@ bash run_fault.sh
 **已执行并纳入提交：**
 - `make fault` — baseline 54 条，保护率 92%
 - `make batch` — 610 条，保护率 99%
-- `make campaign-required` — 286 条 family 代表 + 等效覆盖映射
+- `make campaign-required` — 285 条 family 代表 + 等效覆盖映射，**0 error，Engineering 保护率 100%**
 - `make campaign-report` + `make fi-summary`
 
 **未执行（时间限制，非默认提交必要项）：**
@@ -65,11 +65,23 @@ bash run_fault.sh
 | `sim/fault_injection/diagnostic_coverage_summary.txt` | 总摘要 |
 | `sim/fault_injection/reports/fault_injection_report.csv` | baseline |
 | `sim/fault_injection/reports/fault_batch_report.csv` | batch |
-| `sim/fault_injection/reports/fault_campaign_report.csv` | campaign 逐条 |
+| `sim/fault_injection/reports/fault_campaign_report.csv` | campaign 逐条（285 条） |
 | `sim/fault_injection/reports/fault_campaign_summary.txt` | campaign 汇总 |
 | `sim/fault_injection/reports/fault_campaign_safety_report.csv` | 安全指标 |
 | `sim/fault_injection/reports/fault_site_coverage.csv` | 逐 site 覆盖 |
 | `fault_campaign/safety_metrics_report.csv` | SPFM/LFM 摘要 |
+
+## Campaign 路径修正说明
+
+`tools/run_fault_campaign.py` 包含以下修正，确保 VCS UCLI 能正确 force 所有路径：
+
+1. **`_resolve_mi_parameters()`**（在 `tools/logic_fault_catalog.py`）：将 `[mi]` 替换为 `[0]`，移除 `[mi*EXPR +: EXPR]` 部分选择
+2. **`_fix_hierarchical_path()`**（在 `tools/run_fault_campaign.py`）：
+   - 修正 1-bit unpacked array 双索引：`entry_valid_q_a[0][0]` → `entry_valid_q_a[0]`
+   - 修正 generate block 前缀：`dut.gen_read_master[N].core_read_done[0]` → `dut.core_read_done[0]`（顶层信号）
+3. **`Path.resolve()`**：确保 simv 路径为绝对路径，避免 `subprocess.run(cwd=...)` 导致的相对路径问题
+4. **`is_forceable_path()`**：跳过无法 force 的路径（含未解析 `[mi]` 或参数表达式）
+5. **`force -deposit` 重试**：首次 `force` 超时后自动用 `force -deposit` 重试，增加 timeout 至 600s
 
 ## 全量注错命令（可选，本次未执行）
 

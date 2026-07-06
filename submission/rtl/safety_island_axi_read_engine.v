@@ -118,6 +118,21 @@ reg [2:0] retry_size;
 reg [1:0] retry_burst;
 reg [ID_WIDTH-1:0] retry_id;
 
+// Command buffer: decouples cmd_ready from AR handshake,
+// allowing multiple commands to be accepted while AR channel is busy
+reg                   cmd_buf_valid;
+reg [ID_WIDTH-1:0]    cmd_buf_id;
+reg [ADDR_WIDTH-1:0]  cmd_buf_addr;
+reg [7:0]             cmd_buf_len;
+reg [2:0]             cmd_buf_size;
+reg [1:0]             cmd_buf_burst;
+reg                   cmd_buf_valid_inv;
+reg [ID_WIDTH-1:0]    cmd_buf_id_inv;
+reg [ADDR_WIDTH-1:0]  cmd_buf_addr_inv;
+reg [7:0]             cmd_buf_len_inv;
+reg [2:0]             cmd_buf_size_inv;
+reg [1:0]             cmd_buf_burst_inv;
+
 reg [31:0] wr_ptr_inv;
 reg [31:0] rd_ptr_inv;
 reg [31:0] outstanding_count_inv;
@@ -175,7 +190,7 @@ assign outstanding_count_safe = (outstanding_count > MAX_OUTSTANDING) ?
 
 assign cmd_ready = id_capacity_ok &&
                    (outstanding_count_safe < MAX_OUTSTANDING) &&
-                   !m_axi_arvalid && !retry_active;
+                   !cmd_buf_valid && !retry_active;
 assign m_axi_rready = (outstanding_count_safe != 32'd0);
 assign ptr_shadow_error_comb =
     (wr_ptr_inv != ~wr_ptr) ||
@@ -187,6 +202,14 @@ assign output_shadow_error_comb =
     (error_inv != ~error) ||
     (timeout_inv != ~timeout) ||
     (read_data_inv != ~read_data);
+wire cmd_buf_shadow_error_comb;
+assign cmd_buf_shadow_error_comb =
+    (cmd_buf_valid_inv  != ~cmd_buf_valid)  ||
+    (cmd_buf_id_inv     != ~cmd_buf_id)     ||
+    (cmd_buf_addr_inv   != ~cmd_buf_addr)   ||
+    (cmd_buf_len_inv    != ~cmd_buf_len)    ||
+    (cmd_buf_size_inv   != ~cmd_buf_size)   ||
+    (cmd_buf_burst_inv  != ~cmd_buf_burst);
 assign crc_calc_mismatch_a =
     (ar_signature_dup != ar_signature) ||
     (r_crc_expected_dup != r_crc_expected);
@@ -208,6 +231,7 @@ assign internal_safety_fault =
     slot_shadow_error_comb ||
     ptr_shadow_error_comb ||
     output_shadow_error_comb ||
+    cmd_buf_shadow_error_comb ||
     crc_calc_mismatch_comb ||
     (wr_ptr >= MAX_OUTSTANDING) ||
     (rd_ptr >= MAX_OUTSTANDING) ||
@@ -463,6 +487,19 @@ always @(posedge clk) begin
         retry_data0       <= {DATA_WIDTH{1'b0}};
         retry_data1       <= {DATA_WIDTH{1'b0}};
 
+        cmd_buf_valid     <= 1'b0;
+        cmd_buf_id        <= {ID_WIDTH{1'b0}};
+        cmd_buf_addr      <= {ADDR_WIDTH{1'b0}};
+        cmd_buf_len       <= 8'd0;
+        cmd_buf_size      <= 3'd0;
+        cmd_buf_burst     <= 2'b01;
+        cmd_buf_valid_inv <= 1'b1;
+        cmd_buf_id_inv    <= {ID_WIDTH{1'b1}};
+        cmd_buf_addr_inv  <= {ADDR_WIDTH{1'b1}};
+        cmd_buf_len_inv   <= {8{1'b1}};
+        cmd_buf_size_inv  <= {3{1'b1}};
+        cmd_buf_burst_inv <= ~2'b01;
+
         for (i = 0; i < MAX_OUTSTANDING; i = i + 1) begin
             slot_id_q_a[i]    <= {ID_WIDTH{1'b0}};
             slot_id_q_b[i]    <= {ID_WIDTH{1'b0}};
@@ -505,20 +542,53 @@ always @(posedge clk) begin
         error_inv   <= 1'b1;
         timeout_inv <= 1'b1;
 
-        if (request_fire) begin
+        // ── AR channel: drain cmd_buf to AR if channel is free ──
+        if (!m_axi_arvalid && cmd_buf_valid && !retry_active) begin
             `ifdef DEBUG
-            $display("[RE%m] request_fire: wr_ptr=%0d slot_id=%0h cmd_addr=%0h outstanding=%0d",
-                wr_ptr_safe, slot_id(wr_ptr_safe), cmd_addr, outstanding_count);
+            $display("[RE%m] buf_drain: arid=%0h araddr=%0h (buffered)",
+                cmd_buf_id, cmd_buf_addr);
             `endif
-            m_axi_arid    <= slot_id(wr_ptr_safe);
-            m_axi_araddr  <= cmd_addr;
-            m_axi_arlen   <= cmd_len;
-            m_axi_arsize  <= cmd_size;
-            m_axi_arburst <= cmd_burst;
+            m_axi_arid    <= cmd_buf_id;
+            m_axi_araddr  <= cmd_buf_addr;
+            m_axi_arlen   <= cmd_buf_len;
+            m_axi_arsize  <= cmd_buf_size;
+            m_axi_arburst <= cmd_buf_burst;
             m_axi_arvalid <= 1'b1;
+            cmd_buf_valid     <= 1'b0;
+            cmd_buf_valid_inv <= 1'b1;
             ar_timeout_count <= 32'd0;
             ar_timeout_count_inv <= {32{1'b1}};
-        end else if (retry_active && !m_axi_arvalid) begin
+        end else if (request_fire) begin
+            `ifdef DEBUG
+            $display("[RE%m] request_fire: wr_ptr=%0d slot_id=%0h cmd_addr=%0h outstanding=%0d arvalid=%0d",
+                wr_ptr_safe, slot_id(wr_ptr_safe), cmd_addr, outstanding_count, m_axi_arvalid);
+            `endif
+            if (!m_axi_arvalid) begin
+                // AR channel free — load directly to AR registers
+                m_axi_arid    <= slot_id(wr_ptr_safe);
+                m_axi_araddr  <= cmd_addr;
+                m_axi_arlen   <= cmd_len;
+                m_axi_arsize  <= cmd_size;
+                m_axi_arburst <= cmd_burst;
+                m_axi_arvalid <= 1'b1;
+                ar_timeout_count <= 32'd0;
+                ar_timeout_count_inv <= {32{1'b1}};
+            end else begin
+                // AR channel busy — buffer the command for later issue
+                cmd_buf_id        <= slot_id(wr_ptr_safe);
+                cmd_buf_addr      <= cmd_addr;
+                cmd_buf_len       <= cmd_len;
+                cmd_buf_size      <= cmd_size;
+                cmd_buf_burst     <= cmd_burst;
+                cmd_buf_valid     <= 1'b1;
+                cmd_buf_valid_inv <= 1'b0;
+                cmd_buf_id_inv    <= ~slot_id(wr_ptr_safe);
+                cmd_buf_addr_inv  <= ~cmd_addr;
+                cmd_buf_len_inv   <= ~cmd_len;
+                cmd_buf_size_inv  <= ~cmd_size;
+                cmd_buf_burst_inv <= ~cmd_burst;
+            end
+        end else if (retry_active && !m_axi_arvalid && !cmd_buf_valid) begin
             m_axi_arid    <= retry_id;
             m_axi_araddr  <= retry_addr;
             m_axi_arlen   <= retry_len;

@@ -178,7 +178,11 @@ module safety_island_core_logic
     wire             state_tmr_mismatch;
 
     assign state = (state_a & state_b) | (state_b & state_c) | (state_a & state_c);
-    assign state_tmr_mismatch = (state_a ^ state_b) | (state_a ^ state_c) | (state_b ^ state_c);
+    assign state_tmr_mismatch = (state_a != state_b) &&
+                                (state_b != state_c) &&
+                                (state_a != state_c);
+    wire state_tmr_repair_needed;
+    assign state_tmr_repair_needed = |((state_a ^ state_b) | (state_a ^ state_c) | (state_b ^ state_c));
 
     reg [31:0] current_master_idx_a, current_master_idx_b, current_master_idx_c;
     reg [31:0] current_entry_idx_a, current_entry_idx_b, current_entry_idx_c;
@@ -1163,15 +1167,27 @@ module safety_island_core_logic
                     state_c           <= ST_DRAIN_MASTER;
                     state_inv         <= ~ST_DRAIN_MASTER;
                     scan_once_pending <= 1'b0;
+                    // Clear safety fault registers and accumulator shadow
+                    safety_fault_q_a          <= 1'b0;
+                    safety_fault_q_b          <= 1'b0;
+                    safety_fault_q_c          <= 1'b0;
+                    safety_error_code_q_a     <= ERR_NONE;
+                    safety_error_code_q_b     <= ERR_NONE;
+                    safety_error_code_q_c     <= ERR_NONE;
+                    fault_or_accum            <= {DATA_W{1'b0}};
+                    fault_or_accum_inv        <= {DATA_W{1'b1}};
                 end
+            end else if (state_tmr_mismatch) begin
+                // Uncorrectable mismatch (all 3 differ) — freeze state registers
+                // to preserve the mismatch for detection
             end else begin
                 state_a     <= state_next;
                 state_b     <= state_next;
                 state_c     <= state_next;
                 state_inv   <= ~state_next;
 
-                // TMR feedback repair
-                if (state_tmr_mismatch) begin
+                // TMR feedback repair — only for correctable mismatches (2 agree, 1 differs)
+                if (state_tmr_repair_needed) begin
                     state_a   <= state;
                     state_b   <= state;
                     state_c   <= state;
@@ -1279,12 +1295,15 @@ module safety_island_core_logic
 
                 `ifdef DEBUG
                 if (state != state_next) begin
-                    $display("[CL%m] STATE: %0h->%0h push=%0d pop=%0d oust=%0d pvc=%0d sfc=%0d",
+                    $display("[CL%m] STATE: %0h->%0h push=%0d pop=%0d oust=%0d pvc=%0d sfc=%0d midx=%0d eidx=%0d entry_v=%0d",
                         state, state_next,
                         push_request_comb, pop_response_comb,
                         outstanding_count, pending_valid_count,
-                        safety_fault_comb);
+                        safety_fault_comb,
+                        current_master_idx_safe, current_entry_idx_safe,
+                        current_entry_valid);
                 end
+
                 if (safety_fault_comb) begin
                     $display("[CL%m] SAFETY_FAULT: fsm_illegal=%0d state_inv_mm=%0d idx_fault=%0d pptr_fault=%0d pvalid_fault=%0d accum_sh=%0d kat_fail=%0d state_tmr_mm=%0d pcount_fault=%0d oust_fault=%0d latched=%0d",
                         state, state_next,

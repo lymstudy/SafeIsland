@@ -233,6 +233,16 @@ module safety_island_fault_detector #(
                                   (resp_cmp0 & resp_cmp2);
     assign resp_master_in_range = (fd_resp_master_idx < NUM_MASTERS);
 
+    // Bus error/timeout takes priority over safety-fault codes.
+    // Safety codes are 0x10-0x1F (cfg) and 0x40-0x5F (core/safety).
+    // Bus codes are 0x20-0x2F.  Bus may override safety codes.
+    wire error_code_is_none_or_safety;
+    assign error_code_is_none_or_safety =
+        (error_code_voted == ERR_NONE) ||
+        (error_code_voted[7:4] == 4'h1) ||  // cfg codes 0x10-0x1F
+        (error_code_voted[7:4] == 4'h4) ||  // core codes 0x40-0x4F
+        (error_code_voted[7:4] == 4'h5);    // safety codes 0x50-0x5F
+
     assign fault_status = fault_status_voted;
     assign error_code   = error_code_voted;
 
@@ -280,7 +290,7 @@ module safety_island_fault_detector #(
             end
         end else begin
             // ── Per-response processing ──
-            if (event_shadow_fault) begin
+            if (event_shadow_fault && !fd_resp_error && !fd_resp_timeout) begin
                 safety_island_fault_event_a <= 1'b1;
                 safety_island_fault_event_b <= 1'b1;
                 safety_island_fault_event_c <= 1'b1;
@@ -321,7 +331,7 @@ module safety_island_fault_detector #(
                     fault_status_b[FAULT_ERROR_RESP_BIT + fd_resp_master_idx] <= 1'b1;
                     fault_status_c[FAULT_ERROR_RESP_BIT + fd_resp_master_idx] <= 1'b1;
                     fault_status_inv[FAULT_ERROR_RESP_BIT + fd_resp_master_idx] <= 1'b0;
-                    if (error_code_voted == ERR_NONE) begin
+                    if (error_code_is_none_or_safety) begin
                         error_code_a <= ERR_BUS_RESP;
                         error_code_b <= ERR_BUS_RESP;
                         error_code_c <= ERR_BUS_RESP;
@@ -337,7 +347,7 @@ module safety_island_fault_detector #(
                     fault_status_b[FAULT_TIMEOUT_BIT + fd_resp_master_idx] <= 1'b1;
                     fault_status_c[FAULT_TIMEOUT_BIT + fd_resp_master_idx] <= 1'b1;
                     fault_status_inv[FAULT_TIMEOUT_BIT + fd_resp_master_idx] <= 1'b0;
-                    if (error_code_voted == ERR_NONE) begin
+                    if (error_code_is_none_or_safety) begin
                         error_code_a <= ERR_BUS_TIMEOUT;
                         error_code_b <= ERR_BUS_TIMEOUT;
                         error_code_c <= ERR_BUS_TIMEOUT;
@@ -386,7 +396,8 @@ module safety_island_fault_detector #(
             end
 
             // ── Core safety fault (pass-through) ──
-            if (core_safety_fault) begin
+            // Do not override bus error/timeout codes set in the same cycle
+            if (core_safety_fault && !fd_resp_error && !fd_resp_timeout) begin
                 safety_island_fault_event_a <= 1'b1;
                 safety_island_fault_event_b <= 1'b1;
                 safety_island_fault_event_c <= 1'b1;

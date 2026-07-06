@@ -19,7 +19,7 @@ FI_REPORT  := $(SIM_FI)/reports
 VCS        := vcs
 VERDI      := verdi
 
-VCS_OPTS       := -full64 -sverilog -debug_access+all -kdb +define+FSDB +define+DEBUG -timescale=1ns/1ps
+VCS_OPTS       := -full64 -sverilog -debug_access+all -kdb -timescale=1ns/1ps
 VCS_BATCH_OPTS := -full64 -sverilog -debug_access+all -kdb +define+FSDB +define+FI_ARRAY_BIT_TARGETS -timescale=1ns/1ps
 
 FULL_TOP   := tb_safety_island_top_full

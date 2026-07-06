@@ -18,6 +18,7 @@ module safety_island_heartbeat #(
     output reg  test_inject,
     output reg  heartbeat_fault,
     output reg  heartbeat_active,
+    output reg  heartbeat_self_test_clear,
 
     input  wire safety_island_fault_detect
 );
@@ -66,8 +67,10 @@ module safety_island_heartbeat #(
             heartbeat_fault_int <= 1'b0;
             heartbeat_fault    <= 1'b0;
             heartbeat_active   <= 1'b0;
+            heartbeat_self_test_clear <= 1'b0;
         end else begin
             test_inject <= 1'b0;
+            heartbeat_self_test_clear <= 1'b0;
             heartbeat_fault <= heartbeat_fault_int | heartbeat_internal_fault;
 
             if (state_tmr_mismatch) begin
@@ -134,6 +137,7 @@ module safety_island_heartbeat #(
 
                 H_CLEAR: begin
                     heartbeat_active <= 1'b0;
+                    heartbeat_self_test_clear <= 1'b1;
                     state_a <= H_IDLE;
                     state_b <= H_IDLE;
                     state_c <= H_IDLE;
