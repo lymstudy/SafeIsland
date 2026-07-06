@@ -1,1 +1,1 @@
-FI_SUMMARY: total=610 corrected=3 detected=607 undetected=0 protection_rate=100%
+FI_SUMMARY: total=610 corrected=3 detected=603 undetected=4 protection_rate=99%

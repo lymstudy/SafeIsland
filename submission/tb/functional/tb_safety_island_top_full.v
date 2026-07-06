@@ -694,6 +694,13 @@ always @(posedge clk) begin
                 (q_count[am] < Q_DEPTH)) begin
                 m_axi_arready_flat[am] <= 1'b1;
                 if (!m_axi_arready_flat[am]) begin
+                    `ifdef DEBUG
+                    $display("[TB_SLV] am=%0d AR: arid=%0h araddr=%0h arlen=%0d (total_ar_count=%0d)",
+                        am, m_axi_arid_flat[am*ID_W +: ID_W],
+                        m_axi_araddr_flat[am*ADDR_W +: ADDR_W],
+                        m_axi_arlen_flat[am*8 +: 8],
+                        ar_count[am] + 1);
+                    `endif
                     q_id[(am) * Q_DEPTH + (q_tail[am])]    <= m_axi_arid_flat[am*ID_W +: ID_W];
                     q_addr[(am) * Q_DEPTH + (q_tail[am])]  <= m_axi_araddr_flat[am*ADDR_W +: ADDR_W];
                     q_len[(am) * Q_DEPTH + (q_tail[am])]   <= m_axi_arlen_flat[am*8 +: 8];
@@ -804,6 +811,11 @@ always @(posedge clk) begin
                     if ((am == rcheck_error_master) &&
                         ((rcheck_error_beat < 0) || (q_beat[(am) * Q_DEPTH + (sel_q)] == rcheck_error_beat[7:0])))
                         resp_check = resp_check ^ 8'h5A;
+                    `ifdef DEBUG
+                    $display("[TB_SLV] am=%0d R: rid=%0h rdata=%0h rresp=%0b rlast=%0d (q_head=%0d ar_count=%0d r_count=%0d)",
+                        am, resp_id, resp_data, resp_status, resp_last,
+                        q_head[am], ar_count[am], r_count[am]);
+                    `endif
                     m_axi_rvalid_flat[am] <= 1'b1;
                     m_axi_rid_flat[am*ID_W +: ID_W] <= resp_id;
                     m_axi_rdata_flat[am*DATA_W +: DATA_W] <= resp_data;
@@ -959,6 +971,7 @@ endtask
 
 task outstanding_flow;
     reg [DATA_W-1:0] cfg_rd;
+    integer timeout;
 begin
     case_fail = 0;
     reset_dut();
@@ -979,7 +992,67 @@ begin
         total_fail = total_fail + 1;
     end
     lock_enable_scan();
+    // Timeout watchdog: print DUT state if fault_detect doesn't fire within 6000 cycles
+    fork
+        begin: outstanding_watchdog
+            timeout = 0;
+            while (!fault_detect && timeout < 6000) begin
+                timeout = timeout + 1;
+                @(posedge clk);
+            end
+            if (!fault_detect) begin
+                $display("============================================================");
+                $display("OUTSTANDING_FLOW TIMEOUT: state=%0d scan_busy=%0d outstanding_count=%0d",
+                    tb_safety_island_top_full.dut.u_core_logic.state,
+                    tb_safety_island_top_full.dut.scan_busy,
+                    tb_safety_island_top_full.dut.outstanding_count);
+                $display("  safety_fault_comb=%0d core_safety_fault=%0d aggregate_safety_fault=%0d",
+                    tb_safety_island_top_full.dut.u_core_logic.safety_fault_comb,
+                    tb_safety_island_top_full.dut.core_safety_fault,
+                    tb_safety_island_top_full.dut.aggregate_safety_fault);
+                $display("  pending_valid_count=%0d core_logic_outstanding=%0d",
+                    tb_safety_island_top_full.dut.u_core_logic.pending_valid_count,
+                    tb_safety_island_top_full.dut.u_core_logic.outstanding_count);
+                $display("  fd_comb_raw=%0d sifd_comb_raw=%0d",
+                    tb_safety_island_top_full.dut.fd_comb_raw,
+                    tb_safety_island_top_full.dut.sifd_comb_raw);
+                $display("  fault_detect=%0d safety_island_fault_detect=%0d",
+                    tb_safety_island_top_full.dut.fault_detect,
+                    tb_safety_island_top_full.dut.safety_island_fault_detect);
+                $display("  m_axi_arvalid=%0d m_axi_arready=%0d ar_fire=%0d",
+                    tb_safety_island_top_full.dut.u_read_engine[0].m_axi_arvalid,
+                    tb_safety_island_top_full.dut.m_axi_arready_flat[0],
+                    tb_safety_island_top_full.dut.u_read_engine[0].ar_fire);
+                $display("  cmd_ready=%0d request_fire=%0d outstanding_count_re=%0d retry_active=%0d",
+                    tb_safety_island_top_full.dut.cmd_ready_flat[0],
+                    tb_safety_island_top_full.dut.u_read_engine[0].request_fire,
+                    tb_safety_island_top_full.dut.u_read_engine[0].outstanding_count,
+                    tb_safety_island_top_full.dut.u_read_engine[0].retry_active);
+                $display("  r_fire=%0d m_axi_rvalid=%0d m_axi_rready=%0d m_axi_rid=%0d",
+                    tb_safety_island_top_full.dut.u_read_engine[0].r_fire,
+                    tb_safety_island_top_full.dut.m_axi_rvalid_flat[0],
+                    tb_safety_island_top_full.dut.m_axi_rready_flat[0],
+                    tb_safety_island_top_full.dut.u_read_engine[0].m_axi_rid);
+                $display("  rid_match_found=%0d slot_valid_q_voted[0..3]=%b",
+                    tb_safety_island_top_full.dut.u_read_engine[0].rid_match_found,
+                    {tb_safety_island_top_full.dut.u_read_engine[0].slot_valid_q_voted[3],
+                     tb_safety_island_top_full.dut.u_read_engine[0].slot_valid_q_voted[2],
+                     tb_safety_island_top_full.dut.u_read_engine[0].slot_valid_q_voted[1],
+                     tb_safety_island_top_full.dut.u_read_engine[0].slot_valid_q_voted[0]});
+                $display("  slot_done_q[0..3]=%b",
+                    {tb_safety_island_top_full.dut.u_read_engine[0].slot_done_q[3],
+                     tb_safety_island_top_full.dut.u_read_engine[0].slot_done_q[2],
+                     tb_safety_island_top_full.dut.u_read_engine[0].slot_done_q[1],
+                     tb_safety_island_top_full.dut.u_read_engine[0].slot_done_q[0]});
+                $display("  rsp_fifo_q_count=%0d ar_count[0]=%0d r_count[0]=%0d",
+                    tb_safety_island_top_full.dut.u_rsp_fifo.q_count,
+                    ar_count[0], r_count[0]);
+                $display("============================================================");
+            end
+        end
+    join_none
     wait_fault_detect(6000);
+    disable outstanding_watchdog;
     expect_equal("outstanding_result", fault_or_result, 64'hF);
     if (max_q_count[0] < 4) begin
         $display("FAIL: outstanding depth only %0d", max_q_count[0]);
@@ -1302,7 +1375,7 @@ begin
     // Heartbeat should have detected the stuck fault via timeout
     if (!dut.u_heartbeat.heartbeat_fault) begin
         $display("FAIL: heartbeat did not detect stuck fault_detect (heartbeat_fault=%b state=%d counter=%d wait_cycles=%d)",
-                 dut.u_heartbeat.heartbeat_fault, dut.u_heartbeat.state, dut.u_heartbeat.counter, dut.u_heartbeat.wait_cycles);
+                 dut.u_heartbeat.heartbeat_fault, dut.u_heartbeat.state_voted, dut.u_heartbeat.counter, dut.u_heartbeat.wait_cycles);
         case_fail = case_fail + 1;
         total_fail = total_fail + 1;
     end

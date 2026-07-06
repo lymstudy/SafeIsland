@@ -1,0 +1,21 @@
+Metric,Value
+Mode,required
+Direct simulated faults,286
+Corrected,31
+Detected,82
+Latent,1
+Safe,142
+Undetected,0
+Error / timeout,30
+Strict protection rate (corrected+detected)/total,39.51%
+Engineering protection rate (corrected+detected+latent+safe)/total,89.51%
+Register total sites,213798
+Register directly simulated,36
+Register equivalent covered,212414
+Register uncovered,1348
+Register coverage,99.37%
+Logic total sites,6641
+Logic directly simulated,250
+Logic equivalent covered,5871
+Logic uncovered,520
+Logic coverage,92.17%

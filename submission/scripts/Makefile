@@ -10,6 +10,7 @@ FAULT_TB   := $(ROOT)/tb/fault_injection/tb_safety_island_fault_injection.v
 SIM_FUNC   := $(ROOT)/sim/functional
 SIM_FI     := $(ROOT)/sim/fault_injection
 WORK_DIR   := $(ROOT)/sim/work
+WORK_DIR_FULL := $(ROOT)/sim/work_full
 
 FUNC_LOG   := $(SIM_FUNC)/logs
 FI_LOG     := $(SIM_FI)/logs
@@ -18,7 +19,7 @@ FI_REPORT  := $(SIM_FI)/reports
 VCS        := vcs
 VERDI      := verdi
 
-VCS_OPTS       := -full64 -sverilog -debug_access+all -kdb +define+FSDB -timescale=1ns/1ps
+VCS_OPTS       := -full64 -sverilog -debug_access+all -kdb +define+FSDB +define+DEBUG -timescale=1ns/1ps
 VCS_BATCH_OPTS := -full64 -sverilog -debug_access+all -kdb +define+FSDB +define+FI_ARRAY_BIT_TARGETS -timescale=1ns/1ps
 
 FULL_TOP   := tb_safety_island_top_full
@@ -30,17 +31,28 @@ FAULT_SIMV := $(WORK_DIR)/simv_fault
 FAULT_FSDB := $(WORK_DIR)/waves/fault_injection.fsdb
 BATCH_SIMV := $(WORK_DIR)/simv_batch
 
+CAMPAIGN_SIMV  := $(WORK_DIR)/simv_campaign
+CAMPAIGN_SIMV_FULL := $(WORK_DIR_FULL)/simv_campaign
+CAMPAIGN_REPORT := $(FI_REPORT)/fault_campaign_report.csv
+CAMPAIGN_SUMMARY := $(FI_REPORT)/fault_campaign_summary.txt
+FI_REPORT_FULL := $(FI_REPORT)/full
+CAMPAIGN_REPORT_FULL := $(FI_REPORT_FULL)/fault_campaign_report.csv
+CAMPAIGN_SUMMARY_FULL := $(FI_REPORT_FULL)/fault_campaign_summary.txt
+
 FI_CSV     := $(FI_REPORT)/fault_injection_report.csv
 
 .PHONY: all functional fault-all full full-comp full-run fault fault-comp fault-run batch batch-comp batch-run \
+        campaign-comp campaign-required campaign-full campaign-report \
+        campaign-comp-full campaign-full-isolated campaign-report-full wait-and-run-full \
         cov-full cov-full-comp cov-full-run cov-report summary clean clean-work clean-cov-intermediate \
-        clean-scripts-spill finalize dirs verdi-full verdi-fault
+        clean-scripts-spill finalize dirs verdi-full verdi-fault \
+        logic-faultsim-probe logic-faultsim
 
 all: functional fault-all summary finalize
 
 functional: full cov-full
 
-fault-all: fault batch fi-summary
+fault-all: fault batch campaign-required campaign-report fi-summary
 
 finalize: clean-work clean-cov-intermediate clean-scripts-spill
 
@@ -60,7 +72,7 @@ full-comp: dirs
 		-l $(FUNC_LOG)/full_compile.log
 
 full-run:
-	$(FULL_SIMV) -l $(FUNC_LOG)/full_run.log
+	cd $(WORK_DIR) && $(FULL_SIMV) -l $(FUNC_LOG)/full_run.log
 	@grep -E "cases=|PASS:|FAIL:" $(FUNC_LOG)/full_run.log | tail -5 > $(SIM_FUNC)/regression_summary.txt 2>/dev/null || true
 
 fault: fault-comp fault-run
@@ -74,7 +86,7 @@ fault-comp: dirs
 		-l $(FI_LOG)/fault_compile.log
 
 fault-run:
-	$(FAULT_SIMV) +CSV_FILE=$(FI_CSV) -l $(FI_LOG)/fault_run.log
+	cd $(WORK_DIR) && $(FAULT_SIMV) +CSV_FILE=$(FI_CSV) -l $(FI_LOG)/fault_run.log
 	@grep "FI_SUMMARY" $(FI_LOG)/fault_run.log | head -1 > $(FI_REPORT)/fault_baseline_summary.txt 2>/dev/null || true
 
 batch: batch-comp batch-run
@@ -88,14 +100,15 @@ batch-comp: dirs
 		-l $(FI_LOG)/batch_compile.log
 
 batch-run:
-	$(BATCH_SIMV) +BATCH_ALL +CSV_FILE=$(FI_REPORT)/fault_batch_report.csv \
+	cd $(WORK_DIR) && $(BATCH_SIMV) +BATCH_ALL +CSV_FILE=$(FI_REPORT)/fault_batch_report.csv \
 		-l $(FI_LOG)/batch_run.log
 	@grep "FI_SUMMARY" $(FI_LOG)/batch_run.log | head -1 > $(FI_REPORT)/fault_batch_summary.txt 2>/dev/null || true
 
 fi-summary:
 	@echo "=== Fault Injection Diagnostic Coverage ===" > $(SIM_FI)/diagnostic_coverage_summary.txt
 	@echo "" >> $(SIM_FI)/diagnostic_coverage_summary.txt
-	@echo "保护概率 = (已纠正 + 已探知) / 错误总数" >> $(SIM_FI)/diagnostic_coverage_summary.txt
+	@echo "Strict protection probability = (corrected + detected) / total" >> $(SIM_FI)/diagnostic_coverage_summary.txt
+	@echo "Engineering protection probability = (corrected + detected + latent + safe) / total" >> $(SIM_FI)/diagnostic_coverage_summary.txt
 	@echo "" >> $(SIM_FI)/diagnostic_coverage_summary.txt
 	@if [ -f $(FI_REPORT)/fault_baseline_summary.txt ]; then \
 		echo "Baseline:" >> $(SIM_FI)/diagnostic_coverage_summary.txt; \
@@ -105,6 +118,72 @@ fi-summary:
 		echo "Batch:" >> $(SIM_FI)/diagnostic_coverage_summary.txt; \
 		cat $(FI_REPORT)/fault_batch_summary.txt >> $(SIM_FI)/diagnostic_coverage_summary.txt; \
 	fi
+	@if [ -f $(CAMPAIGN_SUMMARY) ]; then \
+		echo "" >> $(SIM_FI)/diagnostic_coverage_summary.txt; \
+		echo "Campaign:" >> $(SIM_FI)/diagnostic_coverage_summary.txt; \
+		cat $(CAMPAIGN_SUMMARY) >> $(SIM_FI)/diagnostic_coverage_summary.txt; \
+	fi
+
+campaign-comp: dirs
+	cd $(WORK_DIR) && $(VCS) $(VCS_BATCH_OPTS) \
+		-F $(RTL_F) \
+		$(FAULT_TB) \
+		-top $(FAULT_TOP) \
+		-o $(CAMPAIGN_SIMV) \
+		-l $(FI_LOG)/campaign_compile.log
+
+campaign-required: campaign-comp
+	cd $(ROOT) && python tools/run_fault_campaign.py \
+		--mode required \
+		--sim $(CAMPAIGN_SIMV) \
+		--jobs 4
+
+campaign-full: campaign-comp
+	cd $(ROOT) && python tools/run_fault_campaign.py \
+		--mode full \
+		--sim $(CAMPAIGN_SIMV) \
+		--jobs 8
+
+campaign-comp-full: dirs
+	mkdir -p $(WORK_DIR_FULL)/waves
+	cd $(WORK_DIR_FULL) && $(VCS) $(VCS_BATCH_OPTS) \
+		-F $(RTL_F) \
+		$(FAULT_TB) \
+		-top $(FAULT_TOP) \
+		-o $(CAMPAIGN_SIMV_FULL) \
+		-l $(FI_LOG)/campaign_full_compile.log
+
+campaign-full-isolated: campaign-comp-full
+	mkdir -p $(FI_REPORT_FULL)
+	cd $(ROOT) && python tools/run_fault_campaign.py \
+		--mode full \
+		--sim $(CAMPAIGN_SIMV_FULL) \
+		--work-dir $(WORK_DIR_FULL) \
+		--output-dir $(FI_REPORT_FULL) \
+		--jobs 8
+
+campaign-report-full:
+	cd $(ROOT) && python tools/analyze_fi_report.py \
+		--input $(CAMPAIGN_REPORT_FULL) \
+		--output $(FI_REPORT_FULL)/fault_campaign_safety_report.csv \
+		--detail-output $(FI_REPORT_FULL)/fault_campaign_detail.csv || true
+
+wait-and-run-full:
+	cd $(ROOT) && bash tools/wait_and_run_full.sh
+
+campaign-report:
+	cd $(ROOT) && python tools/analyze_fi_report.py \
+		--input $(FI_REPORT)/fault_campaign_report.csv \
+		--output $(FI_REPORT)/fault_campaign_safety_report.csv \
+		--detail-output $(FI_REPORT)/fault_campaign_detail.csv || true
+
+logic-faultsim-probe:
+	cd $(ROOT) && bash tools/probe_faultsim_tool.sh > $(FI_REPORT)/faultsim_tool_probe.txt 2>&1 || true
+
+logic-faultsim:
+	@echo "Optional: run Test-Faultsim/TetraMAX logic stuck-at simulation if local command/library setup is available."
+	@echo "Do not fail submission flow if unavailable."
+	cd $(ROOT) && bash tools/run_logic_faultsim.sh || true
 
 COV_BUILD  := $(SIM_FUNC)/coverage/build
 COV_VDB    := $(SIM_FUNC)/coverage/build.vdb
@@ -125,7 +204,7 @@ cov-full-comp: dirs
 		-l $(FUNC_LOG)/cov_compile.log
 
 cov-full-run:
-	$(COV_SIMV) -l $(FUNC_LOG)/cov_run.log
+	cd $(WORK_DIR) && $(COV_SIMV) -l $(FUNC_LOG)/cov_run.log
 
 cov-report:
 	-urg -full64 -dir $(COV_VDB) -report $(COV_REPORT)
@@ -157,6 +236,14 @@ summary:
 	@echo "  [Fault Batch] $(SIM_FI)/"
 	@if [ -f $(FI_REPORT)/fault_batch_summary.txt ]; then cat $(FI_REPORT)/fault_batch_summary.txt; fi
 	@echo ""
+	@echo "  [Fault Campaign] $(SIM_FI)/"
+	@if [ -f $(CAMPAIGN_SUMMARY) ]; then cat $(CAMPAIGN_SUMMARY); else echo "  Campaign summary not available"; fi
+	@echo ""
+	@echo "  Reports:"
+	@echo "    $(FI_REPORT)/fault_injection_report.csv"
+	@echo "    $(FI_REPORT)/fault_batch_report.csv"
+	@echo "    $(FI_REPORT)/fault_campaign_report.csv"
+	@echo "    $(SIM_FI)/diagnostic_coverage_summary.txt"
 	@echo "======================================================================"
 
 verdi-full:

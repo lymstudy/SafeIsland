@@ -1,0 +1,22 @@
+=== Fault Campaign Summary ===
+Mode: required
+Direct simulated faults: 286
+  corrected=31 detected=82 latent=1 safe=142 tool/TB error=30 functional undetected=0
+Strict protection probability (corrected+detected)/total = 39.51%
+Engineering protection probability (corrected+detected+latent+safe)/total = 89.51%
+Classification note: error=30 are tool/TB injection anomalies (not functional undetected).
+
+=== Fault Site Coverage ===
+Register total sites: 213798
+Register directly simulated: 36
+Register equivalent covered: 212414
+Register uncovered: 1348
+Register coverage: 99.37%
+Logic total sites: 6641
+Logic directly simulated: 250
+Logic equivalent covered: 5871
+Logic uncovered: 520
+Logic coverage: 92.17%
+
+Coverage note: Direct simulation validates representative protection families; equivalent coverage maps homogeneous replicated bits/entries/channels to the validated checker or TMR family.
+Full campaign: required campaign executed; full campaign (per-row) was not executed in this run.

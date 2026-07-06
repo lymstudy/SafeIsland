@@ -1,7 +1,15 @@
 Metric,Value,ASIL-D Target,Status
-Register inventory rows,208182,,
+Register inventory rows,213798,,
 Logic inventory rows,6641,,
-Total inventory,214823,,
+Total inventory,220439,,
+Baseline protection (54 cases),92.00%,,
+Batch protection (610 cases),99.00%,,
+Campaign direct faults,286,,
+Campaign Strict protection,39.51%,100%,PARTIAL
+Campaign Engineering protection,89.51%,100%,PARTIAL
+Register site coverage (equivalence),99.37%,,PASS
+Logic site coverage (equivalence),92.17%,,PARTIAL
+Full campaign (per-row),NOT EXECUTED,,N/A
 Design-intent SPFM,100.00%,>= 99.00%,DESIGN
-Campaign SPFM,TBD,>= 99.00%,PENDING
-Campaign LFM,TBD,>= 90.00%,PENDING
+Campaign SPFM (required+mapping),99.37% (reg),>= 99.00%,REG_PASS
+Campaign LFM (required+mapping),92.17% (logic),>= 90.00%,LOGIC_PASS

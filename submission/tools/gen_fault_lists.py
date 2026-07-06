@@ -10,7 +10,7 @@ Usage:
   python tools/gen_fault_lists.py --output-dir fault_campaign
 """
 
-from __future__ import annotations
+from typing import Dict, List, Set, Tuple
 
 import argparse
 import csv
@@ -53,7 +53,7 @@ def add_reg_rows(rows, module, base_path, width, count, replica, mechanism, expe
             )
 
 
-def build_register_inventory():
+def build_register_inventory() -> List[Dict]:
     rows = []
 
     def triplet(module, path, width, count, mechanism, expected="corrected"):
@@ -84,21 +84,21 @@ def build_register_inventory():
     add_reg_rows(rows, "config_slave", "dut.u_cfg.expected_inv_q", DATA_W, TOTAL_ENTRIES, "-", "shadow", "latent")
     add_reg_rows(rows, "config_slave", "dut.u_cfg.mask_sig_q", 1, TOTAL_ENTRIES, "-", "parity", "latent")
 
-    # --- read_engine ---
-    for slot in range(MAX_OUTSTANDING):
-        triplet("axi_read_engine", f"dut.u_read_engine[{slot}].slot_accum_q", DATA_W, 1, "TMR+repair")
-        triplet("axi_read_engine", f"dut.u_read_engine[{slot}].slot_id_q", ID_W, 1, "TMR+repair")
-        triplet("axi_read_engine", f"dut.u_read_engine[{slot}].slot_len_q", 8, 1, "TMR+repair")
-        triplet("axi_read_engine", f"dut.u_read_engine[{slot}].slot_beat_q", 8, 1, "TMR+repair")
-        triplet("axi_read_engine", f"dut.u_read_engine[{slot}].slot_age_q", 32, 1, "TMR+repair")
-        triplet("axi_read_engine", f"dut.u_read_engine[{slot}].slot_valid_q", 1, 1, "TMR+repair")
+    # --- read_engine (per master, per slot) ---
+    for mi in range(NUM_MASTERS):
+        base = f"dut.gen_read_master[{mi}].u_read_engine"
+        triplet("axi_read_engine", f"{base}.slot_accum_q", DATA_W, MAX_OUTSTANDING, "TMR+repair")
+        triplet("axi_read_engine", f"{base}.slot_id_q", ID_W, MAX_OUTSTANDING, "TMR+repair")
+        triplet("axi_read_engine", f"{base}.slot_len_q", 8, MAX_OUTSTANDING, "TMR+repair")
+        triplet("axi_read_engine", f"{base}.slot_beat_q", 8, MAX_OUTSTANDING, "TMR+repair")
+        triplet("axi_read_engine", f"{base}.slot_age_q", 32, MAX_OUTSTANDING, "TMR+repair")
+        triplet("axi_read_engine", f"{base}.slot_valid_q", 1, MAX_OUTSTANDING, "TMR+repair")
 
     # --- core_logic ---
     triplet("core_logic", "dut.u_core.state", 4, 1, "TMR+repair+illegal_fsm")
     triplet("core_logic", "dut.u_core.current_master_idx", 32, 1, "TMR+range")
     triplet("core_logic", "dut.u_core.current_entry_idx", 32, 1, "TMR+range")
-    for slot in range(MAX_OUTSTANDING):
-        triplet("core_logic", f"dut.u_core.pending_valid_q", 1, 1, "TMR+repair")
+    triplet("core_logic", "dut.u_core.pending_valid_q", 1, MAX_OUTSTANDING, "TMR+repair")
 
     # --- fault_detector ---
     for evt in (
@@ -122,16 +122,16 @@ def build_register_inventory():
     return rows
 
 
-def build_logic_inventory():
+def build_logic_inventory() -> List[Dict]:
     """Bit-level logic fault list from post-TMR catalog (legacy 459 + TMR additions)."""
     return expand_logic_sites_to_bit_rows(load_all_signal_sites())
 
 
-def summarize_logic_rows(rows):
+def summarize_logic_rows(rows: List[Dict]):
     by_module = defaultdict(int)
     by_kind = defaultdict(int)
     by_expected = defaultdict(int)
-    signal_sites = set()
+    signal_sites: Set[Tuple] = set()
     for row in rows:
         by_module[row["module"]] += 1
         by_kind[row["logic_kind"]] += 1
@@ -140,7 +140,7 @@ def summarize_logic_rows(rows):
     return by_module, by_kind, by_expected, len(signal_sites)
 
 
-def build_smoke_list():
+def build_smoke_list() -> List[Dict]:
     """Minimal smoke targets (plan §H2) for post-FI-upgrade campaign."""
     smoke = [
         ("SM001", "config_slave", "dut.u_cfg.expected_q_a[0][0]", "transient_flip", "corrected"),
@@ -171,7 +171,7 @@ def build_smoke_list():
     ]
 
 
-def summarize_register_rows(rows):
+def summarize_register_rows(rows: List[Dict]):
     by_module = defaultdict(int)
     by_mechanism = defaultdict(int)
     by_expected = defaultdict(int)

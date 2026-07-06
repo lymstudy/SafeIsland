@@ -1,54 +1,37 @@
 === Fault Injection Diagnostic Coverage ===
+Updated: 2026-07-06 (VM: autumn@192.168.113.150, VCS T-2022.06)
 
-保护概率 = (已纠正 + 已探知 + 潜伏) / 错误总数
+Strict protection probability    = (corrected + detected) / total
+Engineering protection probability = (corrected + detected + latent + safe) / total
 
-【重要】RTL 已于 2026-07 完成 TMR+repair 安全机制升级。
-下方 Baseline/Batch 数据为升级前 VM 实测（2026-07-02），仅作历史参考。
-正式统计需在故障注入 TB 同步升级后重新跑批。
+--- Baseline (54 cases, make fault) ---
+FI_SUMMARY: total=54 corrected=3 detected=47 undetected=4 protection_rate=92%
 
---- 历史结果 (pre-TMR campaign) ---
+--- Batch (610 bit cases, make batch) ---
+FI_SUMMARY: total=610 corrected=3 detected=603 undetected=4 protection_rate=99%
 
-Baseline (54 cases):
-  FI_SUMMARY: total=54 corrected=3 detected=51 latent=0 undetected=0 protection_rate=100%
+--- Campaign Required (286 representative faults, UCLI + equivalence mapping) ---
+Direct simulated faults: 286
+  corrected=31 detected=82 latent=1 safe=142 tool/TB error=30 functional undetected=0
+Strict protection probability:   39.51%  (corrected+detected)/total
+Engineering protection probability: 89.51%  (corrected+detected+latent+safe)/total
+Note: error=30 are tool/TB injection anomalies (not functional undetected escapes).
 
-Batch (610 bit cases):
-  FI_SUMMARY: total=610 corrected=3 detected=607 latent=0 undetected=0 protection_rate=100%
+Register/memory site coverage (inventory 213798):
+  directly simulated=36  equivalent covered=212414  uncovered=1348  coverage=99.37%
 
---- post-TMR 故障清单分母 (inventory) ---
+Digital logic site coverage (inventory 6641):
+  directly simulated=250  equivalent covered=5871  uncovered=520  coverage=92.17%
 
-Register_fault_list.csv: 208182 rows
-Logic_fault_list.csv:    6641 rows (460 signal sites, bit-level)
-Total inventory:         214823 rows
+Full campaign (per-row, 220439 sites): NOT EXECUTED (time constraint; not required for default submission)
 
-Logic by module:
-  axi_read_engine: 4245
-  config_slave:     800
-  core_logic:       736
-  top_rsp_fifo:     345
-  top:              297
-  fault_detector:   213
-  heartbeat:          5
+--- Reports ---
+  sim/fault_injection/reports/fault_injection_report.csv      baseline
+  sim/fault_injection/reports/fault_batch_report.csv          batch
+  sim/fault_injection/reports/fault_campaign_report.csv       campaign per-fault
+  sim/fault_injection/reports/fault_campaign_summary.txt      campaign summary
+  sim/fault_injection/reports/fault_campaign_safety_report.csv
+  sim/fault_injection/reports/fault_site_coverage.csv         per-site coverage map
 
-Register by module:
-  config_slave:     206316
-  axi_read_engine:    1404
-  fault_detector:      231
-  core_logic:          216
-  heartbeat:             9
-  top:                   6
-
-Register expected_class:
-  corrected: 166665
-  latent:     41280
-  detected:      237
-
-Logic expected_class:
-  corrected: 3242
-  detected:  3397
-  latent:       2
-
---- 待重跑 ---
-
-Campaign SPFM/LFM: TBD
-Smoke list: fault_campaign/fault_smoke_tmr.csv (14 cases)
-Tools: tools/analyze_fi_report.py, tools/gen_safety_report.py
+--- Reproduce ---
+  cd submission/scripts && bash run_fault.sh

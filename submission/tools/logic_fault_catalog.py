@@ -5,9 +5,10 @@ Derived from fault_campaign/legacy_logic_signal_list.csv (459 signal-level entri
 with path fixes, post-TMR signal additions, and per-bit expansion.
 """
 
-from __future__ import annotations
+from typing import Dict, List, Set, Tuple
 
 import csv
+import re
 from pathlib import Path
 
 # Match safety_island_top.v parameters
@@ -28,7 +29,7 @@ ROOT = Path(__file__).resolve().parents[1]
 LEGACY_LOGIC_CSV = ROOT / "fault_campaign" / "legacy_logic_signal_list.csv"
 
 # fault_kind -> bit width for [*] / bus-style logic signals
-WIDTH_BY_FAULT_KIND: dict[str, int] = {
+WIDTH_BY_FAULT_KIND: Dict[str, int] = {
     "aggregate_safety_error_code": ERROR_CODE_W,
     "core_error_code": ERROR_CODE_W,
     "core_safety_error_code": ERROR_CODE_W,
@@ -223,11 +224,12 @@ DETECTED_MISMATCH_KINDS = frozenset(
 SKIP_FAULT_KINDS = frozenset({"fault_i", "scan_i"})
 
 SKIP_PATH_SUBSTR = (
-    ".datapath_safety_fault",  # only exists at dut.datapath_safety_fault
+    ".datapath_safety_fault",
+    "dut.u_fault_detector.fault_detect",  # forcing creates combinational loop
 )
 
 # Post-TMR signals not present in legacy 459-row list
-POST_TMR_ADDITIONS: list[dict] = [
+POST_TMR_ADDITIONS: List[Dict] = [
     # top
     {"module": "top", "path": "dut.fd_comb_raw", "width": 1, "logic_kind": "fault_detect_logic",
      "function": "fd_comb_raw", "expected_class": "detected", "inject_cycle": "runtime", "target_ch": 0},
@@ -302,7 +304,7 @@ POST_TMR_ADDITIONS: list[dict] = [
 ]
 
 # Per-master read_engine additions (slot TMR + safe pointers + protected CRC voter)
-def read_engine_additions(mi: int) -> list[dict]:
+def read_engine_additions(mi: int) -> List[Dict]:
     base = f"dut.gen_read_master[{mi}].u_read_engine"
     ch = mi
     ic = "read_active"
@@ -379,6 +381,21 @@ def _normalize_legacy_path(path: str) -> str:
     return path.replace("[*]", "")
 
 
+def _resolve_mi_parameters(path: str) -> str:
+    """Resolve [mi] genvar and [mi*EXPR +: EXPR] part-select in legacy paths.
+
+    These patterns contain the literal string 'mi' (a genvar/parameter) that VCS
+    UCLI cannot resolve.  Since we only need one representative bit (bit 0 of
+    master 0), replace:
+      - '[mi]'          -> '[0]'
+      - '[mi*EXPR +: EXPR]' -> ''  (the bit index is appended by
+                                    expand_logic_sites_to_bit_rows)
+    """
+    path = re.sub(r"\[mi\]", "[0]", path)
+    path = re.sub(r"\[mi\*[^\]]*\+:\s*[^\]]*\]", "", path)
+    return path
+
+
 def _infer_width(fault_kind: str, path: str, logic_kind: str) -> int:
     if fault_kind in WIDTH_BY_FAULT_KIND:
         return WIDTH_BY_FAULT_KIND[fault_kind]
@@ -415,13 +432,13 @@ def _post_tmr_expected(fault_kind: str, legacy_expected: str) -> str:
     return legacy_expected if legacy_expected else "detected"
 
 
-def load_legacy_signal_sites() -> list[dict]:
+def load_legacy_signal_sites() -> List[Dict]:
     """Load deduplicated signal-level sites from legacy CSV."""
     if not LEGACY_LOGIC_CSV.exists():
         return []
 
-    seen: set[tuple] = set()
-    sites: list[dict] = []
+    seen: Set[Tuple] = set()
+    sites: List[Dict] = []
 
     with LEGACY_LOGIC_CSV.open("r", newline="", encoding="utf-8") as f:
         for row in csv.DictReader(f):
@@ -434,6 +451,7 @@ def load_legacy_signal_sites() -> list[dict]:
                 continue
 
             path = _normalize_legacy_path(path_raw)
+            path = _resolve_mi_parameters(path)
             module = row["module"].strip()
             logic_kind = row["type"].strip()
             inject_cycle = row["inject_cycle"].strip()
@@ -465,7 +483,7 @@ def load_legacy_signal_sites() -> list[dict]:
     return sites
 
 
-def load_all_signal_sites() -> list[dict]:
+def load_all_signal_sites() -> List[Dict]:
     sites = load_legacy_signal_sites()
     seen = {(s["module"], s["path"], s["function"], s.get("target_ch", 0)) for s in sites}
 
@@ -531,8 +549,8 @@ def load_all_signal_sites() -> list[dict]:
     return sites
 
 
-def expand_logic_sites_to_bit_rows(sites: list[dict]) -> list[dict]:
-    rows: list[dict] = []
+def expand_logic_sites_to_bit_rows(sites: List[Dict]) -> List[Dict]:
+    rows: List[Dict] = []
     for site in sites:
         width = max(1, int(site["width"]))
         base_path = site["path"]

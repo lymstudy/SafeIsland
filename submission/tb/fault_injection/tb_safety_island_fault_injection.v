@@ -132,6 +132,19 @@ reg [31:0] fault_corrupt32;
 reg [7:0]  fault_corrupt8;
 reg [3:0]  fault_corrupt4;
 
+// UCLI campaign injection handshake
+reg campaign_inject_pulse;
+
+// UCLI campaign per-fault plusargs
+reg [8*64-1:0] campaign_fault_id;
+reg [8*64-1:0] campaign_fault_module;
+reg [8*24-1:0] campaign_fault_type;
+reg [8*24-1:0] campaign_fault_model;
+reg [8*24-1:0] campaign_expected_class;
+reg [1023:0]   campaign_hierarchical_path;
+reg [1023:0]   campaign_csv_file;
+integer        campaign_monitor_cycles;
+
 safety_island_top #(
     .NUM_MASTERS(NUM_MASTERS),
     .NUM_ENTRIES(NUM_ENTRIES),
@@ -846,8 +859,8 @@ begin
     if ((bit_index < 0) || (bit_index >= ADDR_W)) begin
         report_invalid_bit_index("cfg_base_addr_inv_q0", bit_index);
     end else begin
-        fault_corrupt32 = ~dut.u_cfg.base_addr_q[0];
-        fault_corrupt32[bit_index] = dut.u_cfg.base_addr_q[0][bit_index];
+        fault_corrupt32 = ~dut.u_cfg.base_addr_q_a[0];
+        fault_corrupt32[bit_index] = dut.u_cfg.base_addr_q_a[0][bit_index];
         force dut.u_cfg.base_addr_inv_q[0] = fault_corrupt32;
         expect_fault_within_10("cfg_base_addr_inv_q0", "config_bit", 1'b1, 1'b0, 1'b1);
         release dut.u_cfg.base_addr_inv_q[0];
@@ -863,8 +876,8 @@ begin
     if ((bit_index < 0) || (bit_index >= ADDR_W)) begin
         report_invalid_bit_index("cfg_offset_inv_q0", bit_index);
     end else begin
-        fault_corrupt32 = ~dut.u_cfg.offset_q[0];
-        fault_corrupt32[bit_index] = dut.u_cfg.offset_q[0][bit_index];
+        fault_corrupt32 = ~dut.u_cfg.offset_q_a[0];
+        fault_corrupt32[bit_index] = dut.u_cfg.offset_q_a[0][bit_index];
         force dut.u_cfg.offset_inv_q[0] = fault_corrupt32;
         expect_fault_within_10("cfg_offset_inv_q0", "config_bit", 1'b1, 1'b0, 1'b1);
         release dut.u_cfg.offset_inv_q[0];
@@ -880,8 +893,8 @@ begin
     if ((bit_index < 0) || (bit_index >= DATA_W)) begin
         report_invalid_bit_index("cfg_mask_inv_q0", bit_index);
     end else begin
-        fault_corrupt64 = ~dut.u_cfg.mask_q[0];
-        fault_corrupt64[bit_index] = dut.u_cfg.mask_q[0][bit_index];
+        fault_corrupt64 = ~dut.u_cfg.mask_q_a[0];
+        fault_corrupt64[bit_index] = dut.u_cfg.mask_q_a[0][bit_index];
         force dut.u_cfg.mask_inv_q[0] = fault_corrupt64;
         expect_fault_within_10("cfg_mask_inv_q0", "config_bit", 1'b1, 1'b0, 1'b1);
         release dut.u_cfg.mask_inv_q[0];
@@ -897,8 +910,8 @@ begin
     if ((bit_index < 0) || (bit_index >= DATA_W)) begin
         report_invalid_bit_index("cfg_expected_inv_q0", bit_index);
     end else begin
-        fault_corrupt64 = ~dut.u_cfg.expected_q[0];
-        fault_corrupt64[bit_index] = dut.u_cfg.expected_q[0][bit_index];
+        fault_corrupt64 = ~dut.u_cfg.expected_q_a[0];
+        fault_corrupt64[bit_index] = dut.u_cfg.expected_q_a[0][bit_index];
         force dut.u_cfg.expected_inv_q[0] = fault_corrupt64;
         expect_fault_within_10("cfg_expected_inv_q0", "config_bit", 1'b1, 1'b0, 1'b1);
         release dut.u_cfg.expected_inv_q[0];
@@ -1018,8 +1031,8 @@ begin
     if ((bit_index < 0) || (bit_index >= DATA_W)) begin
         report_invalid_bit_index("read_engine_slot_accum_inv_q0", bit_index);
     end else begin
-        fault_corrupt64 = ~dut.gen_read_master[0].u_read_engine.slot_accum_q[0];
-        fault_corrupt64[bit_index] = dut.gen_read_master[0].u_read_engine.slot_accum_q[0][bit_index];
+        fault_corrupt64 = ~dut.gen_read_master[0].u_read_engine.slot_accum_q_a[0];
+        fault_corrupt64[bit_index] = dut.gen_read_master[0].u_read_engine.slot_accum_q_a[0][bit_index];
         force dut.gen_read_master[0].u_read_engine.slot_accum_inv_q[0] = fault_corrupt64;
         expect_fault_within_10("read_engine_slot_accum_inv_q0", "read_engine_bit", 1'b0, 1'b1, 1'b1);
         release dut.gen_read_master[0].u_read_engine.slot_accum_inv_q[0];
@@ -1264,7 +1277,7 @@ task run_dig_heartbeat_internal_fault;
 begin
     reset_dut(); config_minimal();
     // Force heartbeat state_inv mismatch — tests heartbeat_internal_fault
-    force dut.u_heartbeat.state_inv = dut.u_heartbeat.state;
+    force dut.u_heartbeat.state_inv = dut.u_heartbeat.state_voted;
     expect_fault_within_10("dig_heartbeat_internal", "digital_logic_hb", 1'b0, 1'b1, 1'b0);
     release dut.u_heartbeat.state_inv;
 end
@@ -1275,9 +1288,9 @@ task run_dig_fd_event_shadow_fault;
 begin
     reset_dut(); config_minimal();
     // Force external_fault_event_inv to mismatch — tests event_shadow_fault
-    force dut.u_fault_detector.external_fault_event_inv = dut.u_fault_detector.external_fault_event;
+    force dut.u_fault_detector.external_fault_event_a = ~dut.u_fault_detector.external_fault_event_voted;
     expect_fault_within_10("dig_fd_event_shadow", "digital_logic_fd", 1'b0, 1'b1, 1'b0);
-    release dut.u_fault_detector.external_fault_event_inv;
+    release dut.u_fault_detector.external_fault_event_a;
 end
 endtask
 
@@ -1309,7 +1322,7 @@ task run_dig_kat_shadow_fault;
 begin
     reset_dut(); config_minimal();
     // Force KAT mask inv to mismatch
-    force dut.u_cfg.kat_mask_inv = dut.u_cfg.kat_mask;
+    force dut.u_cfg.kat_mask_inv = dut.u_cfg.kat_mask_a;
     expect_fault_within_10("dig_kat_shadow", "digital_logic_kat_shadow", 1'b1, 1'b0, 1'b1);
     release dut.u_cfg.kat_mask_inv;
 end
@@ -1342,9 +1355,9 @@ endtask
 task run_dig_slot_age_timeout;
 begin
     reset_dut(); config_minimal();
-    force dut.gen_read_master[0].u_read_engine.slot_age_q[0] = 32'hFFFF_FFFF;
+    force dut.gen_read_master[0].u_read_engine.slot_age_q_a[0] = 32'hFFFF_FFFF;
     expect_fault_within_10("dig_slot_age_timeout", "digital_logic_slot", 1'b0, 1'b1, 1'b0);
-    release dut.gen_read_master[0].u_read_engine.slot_age_q[0];
+    release dut.gen_read_master[0].u_read_engine.slot_age_q_a[0];
 end
 endtask
 
@@ -1354,7 +1367,7 @@ endtask
 task run_dig_data_path_stuck;
 begin
     reset_dut(); config_minimal();
-    force dut.u_cfg.expected_inv_q[4][0] = dut.u_cfg.expected_q[4][0];
+    force dut.u_cfg.expected_inv_q[4][0] = dut.u_cfg.expected_q_a[4][0];
     expect_fault_within_10("dig_entry4_shadow", "digital_logic_data", 1'b1, 1'b0, 1'b1);
     release dut.u_cfg.expected_inv_q[4][0];
 end
@@ -1365,9 +1378,9 @@ task run_dig_illegal_entry_fault;
 begin
     reset_dut(); config_minimal();
     // Force bust_type to illegal value (2'b11) → cfg_burst_type_fault_comb
-    force dut.u_cfg.burst_type_q[0] = 2'b11;
+    force dut.u_cfg.burst_type_q_a[0] = 2'b11;
     expect_fault_within_10("dig_illegal_entry", "digital_logic_cfg", 1'b1, 1'b0, 1'b0);
-    release dut.u_cfg.burst_type_q[0];
+    release dut.u_cfg.burst_type_q_a[0];
 end
 endtask
 
@@ -1737,6 +1750,116 @@ begin
 end
 endtask
 
+// UCLI campaign: one fault per simulation, driven by external UCLI force/release.
+task run_ucli_campaign;
+    integer cyc;
+    integer max_cyc;
+    integer detect_latency;
+    reg seen_fault_detect;
+    reg seen_safety_fault;
+    reg seen_latent_fault;
+    reg [DATA_W-1:0] output_before;
+    reg [DATA_W-1:0] output_after;
+    reg output_mismatch;
+    reg [8*24-1:0] result_class;
+    integer fd;
+    reg protected_flag;
+    reg [8*64-1:0] fault_id_str;
+    reg [8*64-1:0] module_str;
+    reg [8*24-1:0] type_str;
+    reg [8*24-1:0] model_str;
+    reg [8*24-1:0] expected_str;
+    reg [1023:0] csv_str;
+    reg [1023:0] path_str;
+    integer mon_cyc;
+begin
+    if (!$value$plusargs("FAULT_ID=%s", fault_id_str))
+        fault_id_str = "unknown";
+    if (!$value$plusargs("FAULT_MODULE=%s", module_str))
+        module_str = "unknown";
+    if (!$value$plusargs("FAULT_TYPE=%s", type_str))
+        type_str = "register";
+    if (!$value$plusargs("FAULT_MODEL=%s", model_str))
+        model_str = "transient_flip";
+    if (!$value$plusargs("EXPECTED_CLASS=%s", expected_str))
+        expected_str = "corrected";
+    if (!$value$plusargs("FAULT_PATH=%s", path_str))
+        path_str = "";
+    if (!$value$plusargs("CSV_FILE=%s", csv_str))
+        csv_str = "fault_campaign_result.csv";
+    if (!$value$plusargs("MONITOR_CYCLES=%d", mon_cyc))
+        mon_cyc = 10;
+
+    reset_dut();
+    config_minimal();
+
+    // Wait for the UCLI driver to assert the injection pulse.
+    while (campaign_inject_pulse !== 1'b1)
+        @(posedge clk);
+
+    output_before = fault_or_result;
+    seen_fault_detect = 1'b0;
+    seen_safety_fault = 1'b0;
+    seen_latent_fault = 1'b0;
+    output_mismatch = 1'b0;
+    detect_latency = -1;
+    max_cyc = mon_cyc;
+
+    for (cyc = 0; cyc < max_cyc; cyc = cyc + 1) begin
+        @(posedge clk);
+        if (!seen_fault_detect && fault_detect) begin
+            seen_fault_detect = 1'b1;
+            if (detect_latency < 0) detect_latency = cyc + 1;
+        end
+        if (!seen_safety_fault && safety_island_fault_detect) begin
+            seen_safety_fault = 1'b1;
+            if (detect_latency < 0) detect_latency = cyc + 1;
+        end
+        if (!seen_latent_fault && safety_island_latent_fault_detect) begin
+            seen_latent_fault = 1'b1;
+        end
+        if (output_before !== fault_or_result)
+            output_mismatch = 1'b1;
+    end
+
+    output_after = fault_or_result;
+    if (output_before !== output_after)
+        output_mismatch = 1'b1;
+
+    // Classification
+    if (seen_latent_fault && !seen_fault_detect && !seen_safety_fault && !output_mismatch)
+        result_class = "latent";
+    else if (seen_fault_detect || seen_safety_fault) begin
+        if (expected_str == "corrected" && !output_mismatch)
+            result_class = "corrected";
+        else
+            result_class = "detected";
+    end else if (output_mismatch)
+        result_class = "undetected";
+    else
+        result_class = "safe";
+
+    protected_flag = (result_class == "corrected") || (result_class == "detected") ||
+                (result_class == "latent") || (result_class == "safe");
+
+    $display("FI_CAMPAIGN: id=%0s result=%0s fault=%0b safety=%0b latent=%0b mismatch=%0b latency=%0d",
+             fault_id_str, result_class, seen_fault_detect, seen_safety_fault,
+             seen_latent_fault, output_mismatch, detect_latency);
+
+    fd = $fopen(csv_str, "w");
+    if (fd != 0) begin
+        $fdisplay(fd, "fault_id,module,type,model,hierarchical_path,expected_class,result_class,detect_latency,fault_detect,safety_fault,latent_fault,output_mismatch,protected");
+        $fdisplay(fd, "%0s,%0s,%0s,%0s,%0s,%0s,%0s,%0d,%0b,%0b,%0b,%0b,%0b",
+                  fault_id_str, module_str, type_str, model_str, path_str, expected_str,
+                  result_class, detect_latency, seen_fault_detect, seen_safety_fault,
+                  seen_latent_fault, output_mismatch, protected_flag);
+        $fclose(fd);
+    end else begin
+        $display("FI_WARN: failed to open campaign CSV %0s", csv_str);
+    end
+end
+endtask
+
 initial begin
 `ifdef FSDB
     $fsdbDumpfile("waves/fault_injection.fsdb");
@@ -1756,6 +1879,12 @@ initial begin
     run_bit_fault = $value$plusargs("FAULT_KIND=%s", selected_fault_kind);
     if (!$value$plusargs("BIT_INDEX=%d", selected_bit_index))
         selected_bit_index = 0;
+
+    if ($test$plusargs("UCLI_CAMPAIGN")) begin
+        run_ucli_campaign();
+        $finish;
+    end
+
     if (!$value$plusargs("SUMMARY_FILE=%s", summary_file))
         summary_file = "fault_injection_summary.txt";
     if (!$value$plusargs("CSV_FILE=%s", csv_file))

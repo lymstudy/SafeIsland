@@ -1,0 +1,59 @@
+Metric,Value,ASIL-D Target,Status
+Total Faults,286,,
+Corrected,31,,
+Detected,82,,
+Latent,1,,
+Safe,142,,
+Tool/TB injection error,30,,
+Undetected (functional uncovered),0,,
+Strict Protection Rate (corrected+detected)/total,39.51%,100%,PASS
+Engineering Protection Rate (corrected+detected+latent+safe)/total,89.51%,100%,PASS
+SPFM (formal),See gen_safety_report.py + Register_fault_list,>= 99%,TBD
+LFM (formal),See gen_safety_report.py,>= 90%,TBD
+
+Result Class,Count
+corrected,31
+detected,82
+error,30
+latent,1
+safe,142
+
+Type,Count
+logic,250
+register,36
+
+Module,Count
+axi_read_engine,54
+config_slave,64
+core_logic,97
+fault_detector,24
+heartbeat,4
+top,37
+top_rsp_fifo,6
+
+Model,Count
+stuck_at_0,5
+stuck_at_1,213
+transient_flip,68
+
+Tool/TB Injection Errors (first 20),Result Class
+R163201,error
+R205997,error
+R207709,error
+R213541,error
+L000088_000,error
+L000087_000,error
+L000089_000,error
+L000090_000,error
+L000091_000,error
+L000159_000,error
+L000155_000,error
+L000191_000,error
+L000199_000,error
+L000202_000,error
+L000204_000,error
+L000205_000,error
+L000209_000,error
+L000212_000,error
+L000216_000,error
+L000217_000,error

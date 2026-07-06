@@ -1,0 +1,10 @@
+---
+description: VCS 虚拟机 SSH 连接命令
+alwaysApply: true
+---
+
+```powershell
+ssh eda-vm
+```
+
+`eda-vm` = `autumn@192.168.113.150`，密钥 `~/.ssh/codex_rhel6`，工程在 `~/Desktop/submission/`。

@@ -70,19 +70,19 @@ assign m_axi_arqos   = 4'b0000;
 (* DONT_TOUCH = "TRUE" *) reg [DATA_WIDTH-1:0]  slot_accum_q_a  [0:MAX_OUTSTANDING-1];
 (* DONT_TOUCH = "TRUE" *) reg [DATA_WIDTH-1:0]  slot_accum_q_b  [0:MAX_OUTSTANDING-1];
 (* DONT_TOUCH = "TRUE" *) reg [DATA_WIDTH-1:0]  slot_accum_q_c  [0:MAX_OUTSTANDING-1];
-wire [ID_WIDTH-1:0]    slot_id_voted    [0:MAX_OUTSTANDING-1];
-wire [7:0]             slot_len_voted   [0:MAX_OUTSTANDING-1];
-wire [7:0]             slot_beat_voted  [0:MAX_OUTSTANDING-1];
-wire [31:0]            slot_age_voted   [0:MAX_OUTSTANDING-1];
-wire [DATA_WIDTH-1:0]  slot_accum_voted [0:MAX_OUTSTANDING-1];
-wire                   slot_meta_tmr_err [0:MAX_OUTSTANDING-1];
+reg [ID_WIDTH-1:0]    slot_id_voted    [0:MAX_OUTSTANDING-1];
+reg [7:0]             slot_len_voted   [0:MAX_OUTSTANDING-1];
+reg [7:0]             slot_beat_voted  [0:MAX_OUTSTANDING-1];
+reg [31:0]            slot_age_voted   [0:MAX_OUTSTANDING-1];
+reg [DATA_WIDTH-1:0]  slot_accum_voted [0:MAX_OUTSTANDING-1];
+reg                   slot_meta_tmr_err [0:MAX_OUTSTANDING-1];
 reg                   slot_error_q    [0:MAX_OUTSTANDING-1];
 reg                   slot_timeout_q  [0:MAX_OUTSTANDING-1];
 (* DONT_TOUCH = "TRUE" *) reg slot_valid_q_a  [0:MAX_OUTSTANDING-1];
 (* DONT_TOUCH = "TRUE" *) reg slot_valid_q_b  [0:MAX_OUTSTANDING-1];
 (* DONT_TOUCH = "TRUE" *) reg slot_valid_q_c  [0:MAX_OUTSTANDING-1];
-wire                  slot_valid_q_voted [0:MAX_OUTSTANDING-1];
-wire                  slot_valid_q_tmr_err [0:MAX_OUTSTANDING-1];
+reg                  slot_valid_q_voted [0:MAX_OUTSTANDING-1];
+reg                  slot_valid_q_tmr_err [0:MAX_OUTSTANDING-1];
 reg                   slot_done_q     [0:MAX_OUTSTANDING-1];
 reg [CRC_WIDTH-1:0]  slot_ar_sig_q   [0:MAX_OUTSTANDING-1];
 
@@ -506,6 +506,10 @@ always @(posedge clk) begin
         timeout_inv <= 1'b1;
 
         if (request_fire) begin
+            `ifdef DEBUG
+            $display("[RE%m] request_fire: wr_ptr=%0d slot_id=%0h cmd_addr=%0h outstanding=%0d",
+                wr_ptr_safe, slot_id(wr_ptr_safe), cmd_addr, outstanding_count);
+            `endif
             m_axi_arid    <= slot_id(wr_ptr_safe);
             m_axi_araddr  <= cmd_addr;
             m_axi_arlen   <= cmd_len;
@@ -547,6 +551,10 @@ always @(posedge clk) begin
         end
 
         if (ar_fire) begin
+            `ifdef DEBUG
+            $display("[RE%m] ar_fire: arid=%0h araddr=%0h wr_ptr=%0d outstanding++ => %0d",
+                m_axi_arid, m_axi_araddr, wr_ptr_safe, outstanding_count + 1);
+            `endif
             slot_id_q_a[wr_ptr_safe]    <= m_axi_arid;
             slot_id_q_b[wr_ptr_safe]    <= m_axi_arid;
             slot_id_q_c[wr_ptr_safe]    <= m_axi_arid;
@@ -627,6 +635,21 @@ always @(posedge clk) begin
         end
 
         if (r_fire) begin
+            `ifdef DEBUG
+            $display("[RE%m] r_fire: rid=%0h rdata=%0h rresp=%0b rlast=%0d rid_match_found=%0d rid_match_idx=%0d",
+                m_axi_rid, m_axi_rdata, m_axi_rresp, m_axi_rlast,
+                rid_match_found, rid_match_idx);
+            if (rid_match_found) begin
+                $display("[RE%m]   slot[%0d]: id=%0h accum=%0h done=%0d",
+                    rid_match_idx, slot_id_voted[rid_match_idx],
+                    slot_accum_voted[rid_match_idx], slot_done_q[rid_match_idx]);
+            end else begin
+                $display("[RE%m]   NO RID MATCH! rd_ptr=%0d slot[%0d].valid=%0d .done=%0d .id=%0h rid=%0h",
+                    rd_ptr_safe, rd_ptr_safe,
+                    slot_valid_q_voted[rd_ptr_safe], slot_done_q[rd_ptr_safe],
+                    slot_id_voted[rd_ptr_safe], m_axi_rid);
+            end
+            `endif
             if (rid_match_found) begin
                 slot_accum_q_a[rid_match_idx] <= r_accum_next;
                 slot_accum_q_b[rid_match_idx] <= r_accum_next;
@@ -680,9 +703,17 @@ always @(posedge clk) begin
         end
 
         if (slot_valid_q_voted[rd_ptr_safe] && slot_done_q[rd_ptr_safe]) begin
+            `ifdef DEBUG
+            $display("[RE%m] slot_done: rd_ptr=%0d slot_error=%0d timeout=%0d retry_count=%0d outstanding=%0d",
+                rd_ptr_safe, slot_error_q[rd_ptr_safe], slot_timeout_q[rd_ptr_safe],
+                retry_count, outstanding_count);
+            `endif
             if (slot_error_q[rd_ptr_safe] && !slot_timeout_q[rd_ptr_safe] &&
                 retry_count < 2'd2) begin
                 // Retry on CRC/data error — do not commit yet
+                `ifdef DEBUG
+                $display("[RE%m]   -> RETRY (count=%0d)", retry_count);
+                `endif
                 retry_count  <= retry_count + 2'd1;
                 retry_active <= 1'b1;
                 retry_addr   <= m_axi_araddr;
@@ -710,6 +741,9 @@ always @(posedge clk) begin
                 slot_beat_q_c[rd_ptr_safe]  <= 8'd0;
                 slot_beat_inv_q[rd_ptr_safe] <= ~8'd0;
             end else begin
+                `ifdef DEBUG
+                $display("[RE%m]   -> COMMIT slot[%0d]", rd_ptr_safe);
+                `endif
                 done      <= 1'b1;
                 error     <= slot_error_q[rd_ptr_safe] | slot_timeout_q[rd_ptr_safe];
                 timeout   <= slot_timeout_q[rd_ptr_safe];

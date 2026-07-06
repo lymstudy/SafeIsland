@@ -1222,6 +1222,12 @@ module safety_island_core_logic
 
                 // ── 弹出完成响应 → 发送至 fault_detector ──
                 if (pop_response_comb) begin
+                    `ifdef DEBUG
+                    $display("[CL%m] POP_RESP: rd_ptr=%0d master=%0d entry=%0d err=%0d tout=%0d data=%0h",
+                        pending_rd_ptr, response_master_idx, response_entry_idx,
+                        response_error_flag, response_timeout_flag,
+                        get_read_data(response_master_idx));
+                    `endif
                     pending_valid_q_a[pending_rd_ptr] <= 1'b0;
                     pending_valid_q_b[pending_rd_ptr] <= 1'b0;
                     pending_valid_q_c[pending_rd_ptr] <= 1'b0;
@@ -1270,6 +1276,26 @@ module safety_island_core_logic
                 end else if (!push_request_comb && pop_response_comb) begin
                     outstanding_count <= outstanding_count - 32'd1;
                 end
+
+                `ifdef DEBUG
+                if (state != state_next) begin
+                    $display("[CL%m] STATE: %0h->%0h push=%0d pop=%0d oust=%0d pvc=%0d sfc=%0d",
+                        state, state_next,
+                        push_request_comb, pop_response_comb,
+                        outstanding_count, pending_valid_count,
+                        safety_fault_comb);
+                end
+                if (safety_fault_comb) begin
+                    $display("[CL%m] SAFETY_FAULT: fsm_illegal=%0d state_inv_mm=%0d idx_fault=%0d pptr_fault=%0d pvalid_fault=%0d accum_sh=%0d kat_fail=%0d state_tmr_mm=%0d pcount_fault=%0d oust_fault=%0d latched=%0d",
+                        state, state_next,
+                        fsm_state_illegal_comb, state_inv_mismatch_comb,
+                        current_index_fault_comb | pending_index_fault_comb,
+                        pending_ptr_fault_comb, pending_valid_fault_comb,
+                        accum_shadow_fault_comb, kat_fail_comb,
+                        state_tmr_mismatch, pending_count_fault_comb,
+                        outstanding_fault_comb, safety_fault_latched_comb);
+                end
+                `endif
 
                 case (state)
                     ST_IDLE: begin
