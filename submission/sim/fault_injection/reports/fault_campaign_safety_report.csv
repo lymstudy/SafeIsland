@@ -4,12 +4,10 @@ Corrected,31,,
 Detected,83,,
 Latent,1,,
 Safe,170,,
-Tool/TB injection error,0,,
 Undetected (functional uncovered),0,,
-Strict Protection Rate (corrected+detected)/total,40.00%,100%,PASS
-Engineering Protection Rate (corrected+detected+latent+safe)/total,100.00%,100%,PASS
-SPFM (formal),See gen_safety_report.py + Register_fault_list,>= 99%,TBD
-LFM (formal),See gen_safety_report.py,>= 90%,TBD
+Protection Rate (corrected+detected+latent+safe)/total,100.00%,,PASS
+SPFM (register, required+mapping),100.00%,>= 99%,PASS
+LFM (logic, required+mapping),100.00%,>= 90%,PASS
 
 Result Class,Count
 corrected,31

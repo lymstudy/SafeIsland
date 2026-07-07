@@ -30,11 +30,11 @@ bash run_all.sh          # 全套一键
 |--------------|---------|---------|
 | 设计文档 (10) | [1-AXI_Safety_Island_设计文档.docx](1-AXI_Safety_Island_设计文档.docx) | 架构、接口、Feature 列表、实现思路 |
 | RTL + 功能验证 (20) | [rtl/](rtl/)（8 文件 + filelist） + [tb/functional/](tb/functional/) + [sim/functional/](sim/functional/) | **PASS 34/34**，含 outstanding/out-of-order/interleaving，编译 0e/0w，覆盖率数据库完整 |
-| Memory/寄存器失效分析 (10) | [3-失效模型描述_完整提交版.docx](3-失效模型描述_完整提交版.docx) | 按模块、故障类型（stuck-at/transient）、保护机制分类 |
+| Memory/寄存器失效分析 (10) | [3-失效模型描述.docx](3-失效模型描述.docx) | 按模块、故障类型（stuck-at/transient）、保护机制分类 |
 | 数字逻辑失效分析 (10) | 同上 | 按 logic_kind 分类，覆盖 FSM/数据路径/控制逻辑 |
 | Memory/寄存器保护 (10) | [4-安全机制分析及设计.docx](4-安全机制分析及设计.docx) + [rtl/](rtl/) | **TMR 纠错** + Shadow/Scrub + Parity |
 | 数字逻辑保护 (20) | 同上 | **TMR voter/protected 纠错** + CRC/E2E + KAT + Heartbeat + FSM 保护 |
-| 注错测试与覆盖 (20) | [5-注错仿真计划.docx](5-注错仿真计划.docx) + [sim/fault_injection/](sim/fault_injection/) + [fault_campaign/](fault_campaign/) | 285 条 family 代表 + 等效映射，Register **100%**，Logic **100%** |
+| 注错测试与覆盖 (20) | [5-注错仿真计划与结果报告.docx](5-注错仿真计划与结果报告.docx) + [sim/fault_injection/](sim/fault_injection/) + [fault_campaign/](fault_campaign/) | 285 条 family 代表 + 等效映射，Register **100%**，Logic **100%** |
 
 ---
 
