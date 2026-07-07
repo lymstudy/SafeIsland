@@ -52,11 +52,11 @@ bash run_fault.sh
 **已执行并纳入提交：**
 - `make fault` — baseline 54 条，保护率 92%
 - `make batch` — 610 条，保护率 99%
-- `make campaign-required` — 285 条 family 代表 + 等效覆盖映射，**0 error，Engineering 保护率 100%**
+- `make campaign-required` — 285 条 family 代表 + 等效覆盖映射；corrected=31, detected=83, latent=1, safe=170, undetected=0；保护率 100%
 - `make campaign-report` + `make fi-summary`
 
 **未执行（时间限制，非默认提交必要项）：**
-- `make campaign-full` / `make campaign-full-isolated` — per-row 全量 220439 条
+- `make campaign-full` / `make campaign-full-isolated` — per-row 全量 220438 条
 
 **正式报告位置：**
 

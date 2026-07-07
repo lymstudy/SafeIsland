@@ -1,24 +1,54 @@
-AXI Safety Island — 代码行覆盖率摘要
-平台: VCS T-2022.06, autumn@192.168.113.146 (eda)
-运行时间: 2026-07-02
-激励: tb/functional/tb_safety_island_top_full.v (34 场景)
+Chronologic VCS simulator copyright 1991-2022
+Contains Synopsys proprietary information.
+Compiler version T-2022.06_Full64; Runtime version T-2022.06_Full64;  Jul  7 10:07 2026
 
-覆盖率数据库:
-  sim/functional/coverage/build.vdb  (line+tgl+cond+fsm)
+ VCS Coverage Metrics Release T-2022.06_Full64 Copyright (c) 1991-2022 by Synopsys Inc.
+PASS: basic_fault_flow
+PASS: no_fault_flow
+PASS: multi_master_flow
+PASS: burst_16_incr_flow
+PASS: wrap_burst_flow
+PASS: bus_error_flow
+PASS: timeout_flow
+PASS: outstanding_flow
+PASS: out_of_order_flow
+PASS: interleaving_flow
+PASS: out_of_order_interleaving_flow
+PASS: invalid_rid_error_flow
+PASS: aou_rcheck_ok_flow
+PASS: aou_rcheck_error_flow
+PASS: aou_rcheck_burst_error_flow
+PASS: config_error_flow
+PASS: latent_fault_flow
+PASS: expected_mismatch_flow
+PASS: expected_match_flow
+PASS: expected_masked_match_flow
+PASS: heartbeat_pass_flow
+PASS: heartbeat_fail_flow
+PASS: heartbeat_no_interfere_flow
+PASS: kat_pass_flow
+PASS: kat_fail_flow
+PASS: kat_disabled_flow
+NOTE: kat_araddr_corrupt_flow requires CRC_WIDTH=16
+PASS: kat_araddr_corrupt_flow
+PASS: tmr_state_ok_flow
+PASS: tmr_state_minority_flow
+PASS: tmr_state_double_fault_flow
+PASS: tmr_fd_stuck_flow
+PASS: tmr_cfg_locked_fault_flow
+PASS: write_verify_pass_flow
+PASS: write_verify_fail_flow
+PASS: safety_island_top full test completed, cases=34
+$finish called from file "/home/autumn/Desktop/submission/tb/functional/tb_safety_island_top_full.v", line 1691.
+$finish at simulation time            167465000
 
-功能仿真: PASS 34/34
+---------------------------------------------------------------------------
+VCS Coverage Metrics: during simulation line, cond, FSM, tgl was monitored
+---------------------------------------------------------------------------
 
-说明:
-  本机 VCS urg 报告生成工具在该 RHEL 环境存在崩溃问题，HTML 报告未能生成。
-  覆盖率数据已完整收集于 build.vdb，可在 urg 正常的 VCS 环境中执行:
-    cd submission/scripts && make cov-report
-  或:
-    urg -full64 -dir ../sim/functional/coverage/build.vdb -report ../sim/functional/coverage/urgReport
+ Coverage status: End of All Coverages ...
 
-参考覆盖率 (同设计 prior VCS 运行):
-  整体 Line 87.5%, Toggle 93.6%, Condition 81.2%, FSM 100%
-  safety_island_core_logic Line 86.7%, FSM 100%
-  tmr_voter Line 100%
-
-详细 cm_count 日志: sim/functional/logs/cov_count.log
-仿真日志: sim/functional/logs/cov_run.log
+           V C S   S i m u l a t i o n   R e p o r t 
+Time: 167465000 ps
+CPU Time:      1.510 seconds;       Data structure size:   0.4Mb
+Tue Jul  7 10:07:45 2026

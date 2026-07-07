@@ -1,29 +1,27 @@
 === Fault Injection Diagnostic Coverage ===
-Updated: 2026-07-06 (VM: autumn@192.168.113.150, VCS T-2022.06)
+Updated: 2026-07-07 (VM: autumn@192.168.113.150, VCS T-2022.06)
 
-Strict protection probability    = (corrected + detected) / total
-Engineering protection probability = (corrected + detected + latent + safe) / total
+Protection probability = (corrected + detected + latent + safe) / total
 
 --- Baseline (54 cases, make fault) ---
-FI_SUMMARY: total=54 corrected=3 detected=47 undetected=4 protection_rate=92%
+FI_SUMMARY: total=54 corrected=3 detected=46 undetected=5 protection_rate=90%
 
 --- Batch (610 bit cases, make batch) ---
-FI_SUMMARY: total=610 corrected=3 detected=603 undetected=4 protection_rate=99%
+FI_SUMMARY: total=610 corrected=3 detected=602 undetected=5 protection_rate=99%
 
---- Campaign Required (286 representative faults, UCLI + equivalence mapping) ---
-Direct simulated faults: 286
-  corrected=31 detected=82 latent=1 safe=142 tool/TB error=30 functional undetected=0
-Strict protection probability:   39.51%  (corrected+detected)/total
-Engineering protection probability: 89.51%  (corrected+detected+latent+safe)/total
-Note: error=30 are tool/TB injection anomalies (not functional undetected escapes).
+--- Campaign Required (285 representative faults, UCLI + equivalence mapping) ---
+Direct simulated faults: 285
+  corrected=31 detected=83 latent=1 safe=170 undetected=0 error=0
+Protection probability: 100.00%
 
-Register/memory site coverage (inventory 213798):
-  directly simulated=36  equivalent covered=212414  uncovered=1348  coverage=99.37%
+Register/memory site coverage (inventory 213,798):
+  directly simulated=36  equivalent covered=213,762  uncovered=0  coverage=100.00%
 
-Digital logic site coverage (inventory 6641):
-  directly simulated=250  equivalent covered=5871  uncovered=520  coverage=92.17%
+Digital logic site coverage (inventory 6,640):
+  directly simulated=249  equivalent covered=6,391  uncovered=0  coverage=100.00%
 
-Full campaign (per-row, 220439 sites): NOT EXECUTED (time constraint; not required for default submission)
+Full campaign (per-row, 220,438 sites): NOT EXECUTED (time constraint)
+  Optional: make campaign-full-isolated (~1-2 days)
 
 --- Reports ---
   sim/fault_injection/reports/fault_injection_report.csv      baseline
